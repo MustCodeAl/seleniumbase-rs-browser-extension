@@ -1,0 +1,7 @@
+{
+  "browsers": ["chrome"],
+  "scripts": ["devtools.js"],
+  "manifest": {
+    "devtools_page": "devtools-recorder/devtools.html"
+  }
+}
