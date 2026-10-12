@@ -1,0 +1,17 @@
+{
+  "name": "seleniumbase-rs-companion",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser extensions that record, inspect and export tests for seleniumbase-rs",
+  "license": "MIT",
+  "scripts": {
+    "build": "bun run scripts/build.ts",
+    "build:e2e": "bun run scripts/build.ts --e2e",
+    "test": "bun test",
+    "lint": "bun run scripts/lint.ts"
+  },
+  "devDependencies": {
+    "happy-dom": "21.0.1"
+  }
+}
