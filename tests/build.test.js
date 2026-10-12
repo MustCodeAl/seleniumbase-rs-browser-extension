@@ -85,6 +85,15 @@ describe("firefox", () => {
 });
 
 describe("the e2e variant", () => {
+  test("firefox-e2e is firefox plus the same loopback access", () => {
+    const e2e = manifestOf("firefox-e2e");
+    expect(e2e.host_permissions).toEqual(["http://127.0.0.1/*", "http://localhost/*"]);
+    const { host_permissions, name, ...rest } = e2e;
+    const { name: firefoxName, ...firefox } = manifestOf("firefox");
+    expect(rest).toEqual(firefox);
+    expect(host_permissions).toBeDefined();
+    expect(name).not.toBe(firefoxName);
+  });
   test("is chrome plus loopback host access, and nothing else", () => {
     const e2e = manifestOf("chrome-e2e");
     expect(e2e.host_permissions).toEqual(["http://127.0.0.1/*", "http://localhost/*"]);
@@ -98,7 +107,7 @@ describe("the e2e variant", () => {
 });
 
 describe("files", () => {
-  const targets = ["chrome", "firefox", "chrome-e2e"];
+  const targets = ["chrome", "firefox", "chrome-e2e", "firefox-e2e"];
 
   test.each(targets)("%s: every file the manifest names exists", (target) => {
     const m = manifestOf(target);
@@ -192,7 +201,8 @@ describe("zips", () => {
     expect(JSON.parse(files.get("manifest.json").toString()).manifest_version).toBe(3);
   });
 
-  test("the e2e variant is not zipped", () => {
+  test("the e2e variants are not zipped", () => {
     expect(result.targets.find((t) => t.name === "chrome-e2e").zip).toBeUndefined();
+    expect(result.targets.find((t) => t.name === "firefox-e2e").zip).toBeUndefined();
   });
 });

@@ -1,9 +1,9 @@
 // Builds the extension from one source tree into dist/chrome and dist/firefox,
 // and a zip of each. Run with `bun run scripts/build.ts`.
 //
-//   --e2e          also build dist/chrome-e2e: dist/chrome plus host access to
-//                  loopback pages, because headless Chrome cannot answer the
-//                  permission prompt (see e2e/README.md)
+//   --e2e          also build dist/chrome-e2e and dist/firefox-e2e: the same plus
+//                  host access to loopback pages, because a headless browser
+//                  cannot answer the permission prompt (see e2e/README.md)
 //   --no-zip       skip the zips
 //   --only <name>  build one target (chrome, firefox)
 //
@@ -337,7 +337,10 @@ export async function build(options: BuildOptions = {}): Promise<BuildResult> {
       targets.push(await buildTarget(browser, browser, features, outRoot, false, options.zip !== false));
     }
   }
-  if (options.e2e) targets.push(await buildTarget("chrome-e2e", "chrome", features, outRoot, true, false));
+  if (options.e2e) {
+    targets.push(await buildTarget("chrome-e2e", "chrome", features, outRoot, true, false));
+    targets.push(await buildTarget("firefox-e2e", "firefox", features, outRoot, true, false));
+  }
   rmSync(join(outRoot, ".gen"), { recursive: true, force: true });
   if (!options.quiet) {
     for (const t of targets) console.log(`built ${relative(ROOT, t.dir)}${t.zip ? ` and ${relative(ROOT, t.zip)}` : ""}`);

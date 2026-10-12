@@ -1,6 +1,7 @@
-// Checks the built extensions: our own manifest rules, then `web-ext lint` (the
-// linter Mozilla runs on add-ons; it checks a Chromium manifest well enough to be
-// useful, and is the Firefox gate). Run after `bun run build`.
+// Checks the built extensions: our own manifest rules on both, then `web-ext lint`
+// (the linter Mozilla runs on add-ons) on dist/firefox. It is not run on dist/chrome:
+// it holds every manifest to Firefox's rules, and a Chrome manifest correctly has a
+// service_worker, no add-on id and the sidePanel permission. Run after `bun run build`.
 //
 // The allow lists below are deliberate: a feature that needs a permission adds
 // it here, on purpose, and says why in the README.
@@ -44,8 +45,9 @@ if (problems.length > 0) {
 console.log("manifest rules: ok");
 
 let failed = false;
-for (const target of ["chrome", "firefox"]) {
-  const run = Bun.spawnSync(["bunx", "--bun", WEB_EXT, "lint", "--source-dir", join(ROOT, "dist", target), "--self-hosted", "--warnings-as-errors"], {
+for (const target of ["firefox"]) {
+  // `bun x` through the running bun, not a `bunx` found on PATH.
+  const run = Bun.spawnSync([process.execPath, "x", WEB_EXT, "lint", "--source-dir", join(ROOT, "dist", target), "--self-hosted", "--warnings-as-errors"], {
     cwd: ROOT,
     stdout: "inherit",
     stderr: "inherit",

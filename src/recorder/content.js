@@ -215,7 +215,10 @@ function create() {
     } else if (key === "Escape") {
       // always recorded
     } else if (NAVIGATION_KEYS.has(key)) {
-      if (textEntry) return;
+      // Arrows move a caret in a field and change the value of a select, a radio
+      // group, a slider; the field's own change event records those.
+      const type = el && el.localName === "input" ? (el.getAttribute("type") || "").toLowerCase() : "";
+      if (textEntry || (el && el.localName === "select") || ["radio", "range", "number"].includes(type)) return;
     } else {
       return;
     }

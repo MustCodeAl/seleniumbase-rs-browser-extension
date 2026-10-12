@@ -1,0 +1,22 @@
+[package]
+name = "sbrs-companion-e2e"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.99"
+license = "MIT"
+publish = false
+description = "Loads the companion extension into a real Chrome through seleniumbase-rs and checks it"
+
+# Not part of any workspace: this crate is built on its own.
+[workspace]
+
+[dependencies]
+# The crate the extension exports tests for. test-util is what the repository's
+# own browser tests use.
+seleniumbase-rs = { path = "/Users/notlaggy/Documents/GitFolder/seleniumbase-rs", features = ["test-util"] }
+serde_json = "1"
+tempfile = "3"
+tokio = { version = "1.53", features = ["macros", "rt-multi-thread", "time", "net", "io-util", "process", "fs", "sync"] }
+
+[lints.rust]
+unsafe_code = "forbid"
