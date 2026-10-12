@@ -95,6 +95,17 @@ makes the panel's `ctx.onChange(area, fn)` run. Anything a feature keeps goes th
 (`local` survives a restart, `session` does not), and the background must not hold state in memory: the browser
 stops and starts it.
 
+## Safari
+
+Safari is not built or tested: no converter is installed here. The route is Apple's converter, then Xcode:
+
+```sh
+xcrun safari-web-extension-converter dist/chrome --app-name "seleniumbase-rs Companion" --project-location ../safari
+```
+
+Build the generated project and turn the extension on in Safari's settings. Expect to review the manifest it
+reports: Safari has no `sidePanel` and no DevTools Recorder, and may treat optional host access differently.
+
 ## Security
 
 No remote code, no `eval` or `new Function` (the build and the tests check the output), a strict extension
@@ -105,8 +116,9 @@ validated and bounded (`sanitizeStep`) before they are stored.
 ## Limits
 
 Steps inside iframes and shadow roots are not recorded (a shadow host is recorded as the target). The recorder
-follows the tab you started in, not other tabs. Only Chrome 155 and Firefox ESR 153 were run; see `e2e/README.md`
-for what was and was not exercised in a real browser.
+follows the tab you started in, not other tabs. Only Chrome 155, Edge 155 and Firefox ESR 153.4 were run; see
+`e2e/README.md` for what was and was not exercised in a real browser (the toolbar popup, the permission prompt,
+the side panel and the DevTools Recorder's Export menu were not).
 
 ## Licence
 

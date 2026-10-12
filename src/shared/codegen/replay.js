@@ -3,7 +3,7 @@
 // `fromReplay` reads one that the DevTools Recorder hands to an extension plugin.
 
 import { normalizeSpace, xpathLiteral } from "../escape.js";
-import { selectorSyntax, step, targetOf } from "../steps.js";
+import { selectorSyntax, step } from "../steps.js";
 
 const DEFAULT_VIEWPORT = { width: 1280, height: 720 };
 
@@ -240,5 +240,3 @@ export function fromReplay(recording) {
   }
   return out;
 }
-
-export { targetOf };

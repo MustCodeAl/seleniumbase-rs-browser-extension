@@ -49,8 +49,4 @@ registerView({
     draw();
     void refresh();
   },
-  show(root, ctx) {
-    void root;
-    void ctx;
-  },
 });

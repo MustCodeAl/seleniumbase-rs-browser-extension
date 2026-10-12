@@ -42,7 +42,7 @@ A headless browser has no toolbar and cannot answer the permission prompt. `dist
 | `records_exports_and_replays_in_chrome` | Chrome | records a flow with real input (typing, a password, a select, a checkbox, a button, a form submit across two pages, a link); the steps; the password never recorded; the three exports; the exported pure CDP test and the BaseCase test **compile** in a scratch crate; the pure CDP test **runs** against the same pages (headless) and the pages log the same events as during the recording |
 | `inspector_selectors_match_one_element_each` | Chrome | picks 21 awkward elements with the real picker (real clicks); every selector it calls unique matches exactly that element in the page; no generated-looking class or id is used; the page report, parsed into seleniumbase-rs's `Fingerprint`; the build without host access; the DevTools Recorder plugin's `stringify` on a Recorder JSON; hostile text through the bundled generators, and the results **compile** |
 | `edge_loads_the_extension_and_records` | Edge | Edge accepts `Extensions.loadUnpacked`, the background answers, a click is recorded |
-| `firefox/check.sh` | Firefox ESR (Docker) | geckodriver installs `dist/firefox-e2e` as a temporary add-on; the background runs; the recorder starts and records typing and a click; the export |
+| `firefox/check.sh` | Firefox ESR (Docker) | geckodriver installs `dist/firefox-e2e` as a temporary add-on; the background runs; the recorder starts and records typing and a click made through WebDriver; the export. WebDriver may not open a `moz-extension:` address, so the panel page is shown in an iframe of a loopback page (the e2e build lists it as web-accessible for `127.0.0.1`), and the fixture tab is found by trying small tab ids |
 
 ## Firefox
 

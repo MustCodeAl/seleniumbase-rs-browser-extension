@@ -291,7 +291,4 @@ registerView({
     draw();
     void refresh();
   },
-  show(root, ctx) {
-    void ctx;
-  },
 });

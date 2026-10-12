@@ -55,8 +55,3 @@ export function installRouter() {
     return true;
   });
 }
-
-/** For tests: forget every handler. */
-export function resetHandlers() {
-  handlers.clear();
-}
