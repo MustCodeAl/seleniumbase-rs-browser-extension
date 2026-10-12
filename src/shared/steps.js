@@ -21,6 +21,9 @@
 //   waitFor     target, visible
 //   unsupported description                             a step with no equivalent
 //
+// Any step may also carry `navigates: true`: the page it was recorded on loaded
+// another page as its effect, so the generated code waits for it.
+//
 // `target` is { tag, role?, name?, text?, selectors: [candidate] } where a
 // candidate is { kind, syntax, value, count, unique, aria? } (see selectors.js).
 // A step may also carry `selector`, a string the person typed over the
@@ -155,6 +158,7 @@ export function sanitizeStep(raw) {
     if (value !== undefined) out[field] = value;
   }
   if (typeof raw.visible === "boolean") out.visible = raw.visible;
+  if (typeof raw.navigates === "boolean") out.navigates = raw.navigates;
   if (Array.isArray(raw.names)) out.names = raw.names.slice(0, 20).filter((n) => typeof n === "string").map((n) => n.slice(0, 255));
   if (raw.sensitive === true) {
     out.sensitive = true;
@@ -212,6 +216,20 @@ export function shouldRecordNavigation(steps, { url, nav, now }) {
   if (CAUSES_NAVIGATION.has(last.type) && age < CAUSE_WINDOW_MS) return false;
   if (last.type === "navigate" && age < CAUSE_WINDOW_MS) return false;
   return true;
+}
+
+/**
+ * `steps` with the last step flagged `navigates` when the page that just loaded
+ * is its effect: a click that followed a link, an Enter that submitted a form.
+ * The generators wait for the page after such a step, so the next step does not
+ * start on the old one. Returns `steps` itself when nothing changes.
+ */
+export function markNavigation(steps, { nav, now }) {
+  if (steps.length === 0 || nav === "reload") return steps;
+  const last = steps[steps.length - 1];
+  if (!CAUSES_NAVIGATION.has(last.type) || last.navigates) return steps;
+  if (now - (last.t ?? 0) >= CAUSE_WINDOW_MS) return steps;
+  return [...steps.slice(0, -1), { ...last, navigates: true }];
 }
 
 const AUTOCOMPLETE_LABELS = {

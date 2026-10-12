@@ -109,6 +109,8 @@ export function basecaseStatements(s) {
     default:
       lines.push(skipped(`unknown step ${rustStr(String(s.type))}`));
   }
+  // The step loaded a page as its effect: wait for it before the next step.
+  if (s.navigates === true && s.type !== "navigate") lines.push("sb.wait_for_ready_state_complete().await?;");
   return { lines };
 }
 

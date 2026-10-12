@@ -28,6 +28,14 @@ export const TESTID_ATTRIBUTES = [
   "data-e2e",
 ];
 
+/**
+ * What a click is about: the nearest element a person would call a control. A
+ * click on the icon inside a button is a click on the button. The recorder and the
+ * picker both snap to it.
+ */
+export const INTERACTIVE_SELECTOR =
+  'a,button,input,select,textarea,label,summary,[role="button"],[role="link"],[role="menuitem"],[role="tab"],[role="checkbox"],[role="radio"],[role="switch"],[role="option"],[onclick]';
+
 const KIND_ORDER = [
   "testid",
   "id",

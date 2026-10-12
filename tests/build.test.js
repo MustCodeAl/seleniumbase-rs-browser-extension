@@ -85,10 +85,14 @@ describe("firefox", () => {
 });
 
 describe("the e2e variant", () => {
-  test("firefox-e2e is firefox plus the same loopback access", () => {
+  test("firefox-e2e is firefox plus the same loopback access, and the panel page for a loopback frame", () => {
     const e2e = manifestOf("firefox-e2e");
     expect(e2e.host_permissions).toEqual(["http://127.0.0.1/*", "http://localhost/*"]);
-    const { host_permissions, name, ...rest } = e2e;
+    expect(e2e.web_accessible_resources).toEqual([{ resources: ["ui/panel.html"], matches: ["http://127.0.0.1/*"] }]);
+    expect(manifestOf("firefox").web_accessible_resources).toBeUndefined();
+    expect(manifestOf("chrome-e2e").web_accessible_resources).toBeUndefined();
+    const { host_permissions, web_accessible_resources, name, ...rest } = e2e;
+    expect(web_accessible_resources).toBeDefined();
     const { name: firefoxName, ...firefox } = manifestOf("firefox");
     expect(rest).toEqual(firefox);
     expect(host_permissions).toBeDefined();

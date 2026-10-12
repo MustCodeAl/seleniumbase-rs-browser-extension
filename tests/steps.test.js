@@ -198,3 +198,29 @@ describe("sanitizeStep", () => {
     expect(clean.y).toBe(5);
   });
 });
+
+describe("markNavigation", () => {
+  const { markNavigation } = require("../src/shared/steps.js");
+  test("flags the step that caused the page", () => {
+    const steps = [{ ...click("#go"), t: 4000 }];
+    const marked = markNavigation(steps, { nav: "navigate", now: 5000 });
+    expect(marked[0].navigates).toBe(true);
+    expect(steps[0].navigates).toBeUndefined();
+  });
+  test("not a step long before", () => {
+    const steps = [{ ...click("#go"), t: 1000 }];
+    expect(markNavigation(steps, { now: 9000 })).toBe(steps);
+  });
+  test("not a reload, not a navigate step, not twice", () => {
+    const steps = [{ ...click("#go"), t: 4000 }];
+    expect(markNavigation(steps, { nav: "reload", now: 5000 })).toBe(steps);
+    const nav = [step("navigate", { url: "https://a.test/", t: 4000 })];
+    expect(markNavigation(nav, { now: 5000 })).toBe(nav);
+    const once = markNavigation(steps, { now: 5000 });
+    expect(markNavigation(once, { now: 5100 })).toBe(once);
+  });
+  test("sanitizeStep keeps the flag", () => {
+    expect(sanitizeStep({ type: "click", navigates: true }).navigates).toBe(true);
+    expect(sanitizeStep({ type: "click", navigates: "yes" }).navigates).toBeUndefined();
+  });
+});

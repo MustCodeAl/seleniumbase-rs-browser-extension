@@ -118,6 +118,8 @@ export function cdpStatements(s) {
     default:
       lines.push(skipped(`unknown step ${rustStr(String(s.type))}`));
   }
+  // The step loaded a page as its effect: wait for it before the next step.
+  if (s.navigates === true && s.type !== "navigate") lines.push("page.wait_for_load().await?;");
   return out();
 }
 

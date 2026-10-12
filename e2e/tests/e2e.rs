@@ -198,6 +198,32 @@ async fn records_exports_and_replays_in_chrome() {
     assert_eq!(steps[3]["text"], json!("Green"));
     assert_eq!(steps[7]["key"], json!("Enter"));
 
+    // The panel as a person sees it, once there are steps to show.
+    let panel = Ext::open(
+        &browser,
+        &id,
+        &format!("ui/panel.html?tabId={tab}&view=record"),
+    )
+    .await;
+    eventually(
+        "the steps in the panel",
+        Duration::from_secs(10),
+        || async {
+            let count = panel
+                .run_script("document.querySelectorAll('#view-record ol.steps li').length")
+                .await;
+            (count == json!(9)).then_some(())
+        },
+    )
+    .await;
+    assert_eq!(
+        panel
+            .run_script("[...document.querySelectorAll('[role=tab]')].map(t => t.textContent)")
+            .await,
+        json!(["Record", "Inspect", "Page"])
+    );
+    panel.snapshot("panel-record").await;
+
     // The record phase, as the page saw it.
     let recorded_log = server.take_log();
     println!("page saw while recording: {recorded_log:?}");
@@ -388,11 +414,15 @@ async fn inspector_selectors_match_one_element_each() {
                    if (s === 'css') found = [...document.querySelectorAll(v)];
                    else if (s === 'xpath') {{ const r = document.evaluate(v, document, null, 7, null); for (let i = 0; i < r.snapshotLength; i++) found.push(r.snapshotItem(i)); }}
                    else if (s === 'link') {{ const t = v.slice(v.indexOf('=') + 1); found = [...document.querySelectorAll('a')].filter(a => a.textContent.replace(/[ \\t\\r\\n]+/g, ' ').trim() === t); }}
-                   return {{ count: found.length, probe: found[0] ? found[0].getAttribute('data-probe') : null }}; }})()",
+                   return {{ count: found.length, probe: found[0] ? (found[0].closest('[data-probe]') || found[0]).getAttribute('data-probe') : null }};
+                 }})()",
                 value = serde_json::to_string(value).expect("a string"),
                 syntax = serde_json::to_string(syntax).expect("a string"),
             );
-            let seen = page.evaluate(script).await.expect("the check runs");
+            let seen = page
+                .evaluate(&script)
+                .await
+                .unwrap_or_else(|error| panic!("the check runs: {error}\n{script}"));
             assert_eq!(
                 seen["count"],
                 json!(1),
@@ -458,6 +488,37 @@ async fn inspector_selectors_match_one_element_each() {
         .expect("error")
         .contains("no access"));
 
+    // The panel's other two views, with a pick and a report to show.
+    for view in ["inspect", "page"] {
+        let panel = Ext::open(
+            &browser,
+            &id,
+            &format!("ui/panel.html?tabId={tab}&view={view}"),
+        )
+        .await;
+        tokio::time::sleep(Duration::from_secs(6)).await;
+        let shown = panel
+            .run_script(&format!(
+                "document.querySelector('#notice').textContent + ' | ' + document.querySelector('#view-{view}').innerText.slice(0, 300)"
+            ))
+            .await;
+        println!("the {view} view shows: {shown}");
+        eventually(
+            &format!("the {view} view"),
+            Duration::from_secs(15),
+            || async {
+                let shown = panel
+                    .run_script(&format!(
+                        "document.querySelectorAll('#view-{view} .row, #view-{view} table tr').length"
+                    ))
+                    .await;
+                (shown.as_i64()? > 3).then_some(())
+            },
+        )
+        .await;
+        panel.snapshot(&format!("panel-{view}")).await;
+    }
+
     // The DevTools Recorder plugin page, outside DevTools: the registration needs
     // a real DevTools, but the plugin it registers can be called.
     let plugin = Ext::open(&browser, &id, "devtools-recorder/devtools.html").await;
@@ -479,7 +540,7 @@ async fn inspector_selectors_match_one_element_each() {
     println!("--- DevTools Recorder export (pure CDP) ---\n{exported_cdp}");
     assert!(exported_cdp.contains("page.locator(\"#go\").click().await?;"));
     assert!(exported_cdp.contains("page.locator(\"#email\").set_value(\"alice\").await?;"));
-    assert!(exported_cdp.contains("async fn from_devtools()"));
+    assert!(exported_cdp.contains("async fn from_dev_tools()"));
     let exported_base = plugin
         .run_script(&format!(
             "__sbrsRecorderPlugins.basecase.stringify({recording})"

@@ -10,7 +10,7 @@
 
 import { ext } from "../shared/api.js";
 import { MSG, message } from "../shared/protocol.js";
-import { generateSelectors } from "../shared/selectors.js";
+import { INTERACTIVE_SELECTOR, generateSelectors } from "../shared/selectors.js";
 import { isSensitiveField } from "../shared/steps.js";
 
 const TYPING_PAUSE_MS = 500;
@@ -20,8 +20,7 @@ const SCROLL_MIN_PX = 100;
 const TEXT_INPUT_TYPES = new Set(["text", "search", "email", "tel", "url", "password", "number", ""]);
 const NON_TEXT_VALUE_TYPES = new Set(["range", "color", "date", "time", "datetime-local", "month", "week"]);
 const NAVIGATION_KEYS = new Set(["Tab", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown"]);
-const CLICKABLE =
-  'a,button,input,select,textarea,label,summary,[role="button"],[role="link"],[role="menuitem"],[role="tab"],[role="checkbox"],[role="radio"],[role="switch"],[role="option"],[onclick]';
+const CLICKABLE = INTERACTIVE_SELECTOR;
 
 function create() {
   let enabled = false;
@@ -278,6 +277,7 @@ function create() {
       url: location.href,
       title: document.title,
       nav: navigationType(),
+      doc: performance.timeOrigin, // one value per loaded document
     });
     if (reply && reply.ok && reply.active) {
       settings = { ...settings, ...(reply.settings ?? {}) };

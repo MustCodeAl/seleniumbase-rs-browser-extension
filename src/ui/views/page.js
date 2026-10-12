@@ -71,12 +71,12 @@ registerView({
           report ? copyButton(JSON.stringify(report.probe, null, 2), "the full report") : null,
           report ? h("span", { class: "sub", text: "full report" }) : null,
         ),
-        report
+        ...(report
           ? [
               h("p", { text: `What ${report.probe.url ?? "the page"} sees. The Fingerprint JSON has the fields of seleniumbase-rs's Fingerprint that this browser answers.` }),
               h("table", {}, facts(report.probe)),
             ]
-          : h("p", { class: "empty", text: running ? "Reading the page..." : "Press Read this page to see what the page's scripts see: navigator, client hints, screen, time zone, WebGL, canvas, permissions and headless markers." }),
+          : [h("p", { class: "empty", text: running ? "Reading the page..." : "Press Read this page to see what the page's scripts see: navigator, client hints, screen, time zone, WebGL, canvas, permissions and headless markers." })]),
       );
     }
 

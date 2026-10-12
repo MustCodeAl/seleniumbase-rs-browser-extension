@@ -14,6 +14,7 @@ import {
   appendStep,
   deleteStep,
   editStep,
+  markNavigation,
   moveStep,
   sanitizeStep,
   shouldRecordNavigation,
@@ -172,20 +173,32 @@ function fromRecordedTab(state, sender) {
 
 registerHandler(
   MSG.RECORDER_HELLO,
-  ({ url, title, nav }, sender) =>
+  ({ url, title, nav, doc }, sender) =>
     locked(async () => {
       const state = await load();
       if (!fromRecordedTab(state, sender)) return { active: false };
-      let steps = state.steps;
-      if (typeof url === "string" && RECORDABLE.test(url) && shouldRecordNavigation(steps, { url, nav, now: Date.now() })) {
-        steps = appendStep(steps, step("navigate", { url }));
-        await saveSteps(steps);
-        await changed();
+      // The same document asking again (the script is injected on `loading` and on
+      // `complete`) is not a new page.
+      const sameDocument = typeof doc === "number" && state.active.doc === doc;
+      if (!sameDocument) {
+        await set(session, K_ACTIVE, { ...state.active, doc: typeof doc === "number" ? doc : null, warning: null });
+        const now = Date.now();
+        let steps = state.steps;
+        if (typeof url === "string" && RECORDABLE.test(url) && shouldRecordNavigation(steps, { url, nav, now })) {
+          steps = appendStep(steps, step("navigate", { url }));
+          await saveSteps(steps);
+          await changed();
+        } else {
+          const marked = markNavigation(steps, { nav, now });
+          if (marked !== steps) {
+            await saveSteps(marked);
+            await changed();
+          }
+        }
+        if (!state.meta.title && typeof title === "string") {
+          await set(local, K_META, { ...state.meta, title: title.slice(0, 200) });
+        }
       }
-      if (!state.meta.title && typeof title === "string") {
-        await set(local, K_META, { ...state.meta, title: title.slice(0, 200) });
-      }
-      if (state.active.warning) await set(session, K_ACTIVE, { ...state.active, warning: null });
       return { active: true, settings: state.settings };
     }),
   "content",

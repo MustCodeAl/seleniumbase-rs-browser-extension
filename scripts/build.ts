@@ -266,6 +266,13 @@ function manifestFor(target: string, browser: Browser, features: Feature[], e2e:
   manifest.version = pkg.version;
   if (e2e) {
     manifest = mergeManifest(manifest, { host_permissions: ["http://127.0.0.1/*", "http://localhost/*"] });
+    if (browser === "firefox") {
+      // WebDriver may not navigate to a moz-extension: address, so the e2e check shows
+      // the panel page in a frame of a loopback page, which needs this.
+      manifest = mergeManifest(manifest, {
+        web_accessible_resources: [{ resources: ["ui/panel.html"], matches: ["http://127.0.0.1/*"] }],
+      });
+    }
     manifest.name = `${manifest.name} (e2e)`;
   }
   void target;

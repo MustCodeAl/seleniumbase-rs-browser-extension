@@ -353,3 +353,28 @@ describe("ready-to-copy calls", () => {
 function pickOf(s) {
   return s.selector ?? s.target.selectors.find((c) => c.syntax !== "aria")?.value;
 }
+
+describe("a step that loads a page", () => {
+  const loads = { ...step("click", on("#go")), navigates: true };
+  test("pure CDP waits for the load", () => {
+    expect(cdpStatements(loads).lines).toEqual(['page.locator("#go").click().await?;', "page.wait_for_load().await?;"]);
+  });
+  test("BaseCase waits for the ready state", () => {
+    expect(basecaseStatements(loads).lines).toEqual(['sb.click("#go").await?;', "sb.wait_for_ready_state_complete().await?;"]);
+  });
+  test("the DevTools Recorder JSON says it caused a navigation", () => {
+    const replay = toReplay([loads, { ...step("keyPress", { key: "Enter" }), navigates: true }], { title: "t" });
+    expect(replay.steps[1].assertedEvents).toEqual([{ type: "navigation" }]);
+    expect(replay.steps[2].assertedEvents).toEqual([{ type: "navigation" }]);
+  });
+  test("a Recorder step that caused a navigation round-trips", () => {
+    const steps = fromReplay({
+      steps: [{ type: "click", target: "main", selectors: [["#go"]], offsetX: 1, offsetY: 1, assertedEvents: [{ type: "navigation", url: "https://x.test/", title: "" }] }],
+    });
+    expect(steps[0].navigates).toBe(true);
+    expect(cdpStatements(steps[0]).lines[1]).toBe("page.wait_for_load().await?;");
+  });
+  test("a navigate step needs no extra wait", () => {
+    expect(cdpStatements({ ...step("navigate", { url: "https://x.test/" }), navigates: true }).lines).toEqual(['page.goto("https://x.test/").await?;']);
+  });
+});

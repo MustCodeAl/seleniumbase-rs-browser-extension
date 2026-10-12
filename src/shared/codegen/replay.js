@@ -80,6 +80,7 @@ export function toReplay(steps, options = {}) {
             selectors,
             offsetX: s.offsetX ?? 1,
             offsetY: s.offsetY ?? 1,
+            ...(s.navigates ? { assertedEvents: [{ type: "navigation" }] } : {}),
           });
         }
         break;
@@ -102,7 +103,12 @@ export function toReplay(steps, options = {}) {
         if (hasTarget) out.push({ type: "change", value: (s.names ?? [])[0] ?? "", selectors, target: "main" });
         break;
       case "keyPress":
-        out.push({ type: "keyDown", target: "main", key: s.key });
+        out.push({
+          type: "keyDown",
+          target: "main",
+          key: s.key,
+          ...(s.navigates ? { assertedEvents: [{ type: "navigation" }] } : {}),
+        });
         out.push({ type: "keyUp", key: s.key, target: "main" });
         break;
       case "scroll":
@@ -176,6 +182,9 @@ export function fromReplay(recording) {
       continue;
     }
     const target = () => targetFromSelectors(raw.selectors);
+    // The Recorder notes a step that caused a navigation; the generators wait after it.
+    const loads = Array.isArray(raw.assertedEvents) && raw.assertedEvents.some((e) => e && e.type === "navigation");
+    const effect = loads && type !== "navigate" ? { navigates: true } : {};
     switch (type) {
       case "setViewport":
         if (raw.isMobile === true) out.push(unsupported(type, "is a mobile viewport and has no equivalent"));
@@ -195,7 +204,7 @@ export function fromReplay(recording) {
         } else if (type === "click" && raw.button !== undefined && raw.button !== "primary") {
           out.push(unsupported(type, `uses the ${raw.button} button and has no equivalent`));
         } else {
-          out.push(step(type, { target: t, offsetX: raw.offsetX, offsetY: raw.offsetY }));
+          out.push(step(type, { target: t, offsetX: raw.offsetX, offsetY: raw.offsetY, ...effect }));
         }
         break;
       }
@@ -206,7 +215,7 @@ export function fromReplay(recording) {
         break;
       }
       case "keyDown":
-        out.push(step("keyPress", { key: String(raw.key ?? "") }));
+        out.push(step("keyPress", { key: String(raw.key ?? ""), ...effect }));
         break;
       case "scroll": {
         if (raw.selectors) {

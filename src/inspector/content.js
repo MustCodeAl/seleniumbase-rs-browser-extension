@@ -10,7 +10,7 @@ import { callsFor } from "../shared/calls.js";
 import { h } from "../shared/dom.js";
 import { MSG, message } from "../shared/protocol.js";
 import { copyButton, renderPick } from "../shared/pickview.js";
-import { generateSelectors } from "../shared/selectors.js";
+import { INTERACTIVE_SELECTOR, generateSelectors } from "../shared/selectors.js";
 
 const CSS = `
 :host { all: initial; }
@@ -76,9 +76,14 @@ function create() {
     return el.localName + (id ? `#${id}` : "") + classes.map((c) => `.${c}`).join("");
   }
 
-  function elementAt(x, y) {
+  // The element a pick lands on: the control under the pointer (the button, not the
+  // icon inside it). Hold Alt to pick exactly what is under the pointer.
+  function elementAt(x, y, exact) {
     const el = document.elementFromPoint(x, y);
-    return el && el !== host ? el : null;
+    if (!el || el === host) return null;
+    if (exact) return el;
+    const control = el.closest ? el.closest(INTERACTIVE_SELECTOR) : null;
+    return control ?? el;
   }
 
   function inside(event) {
@@ -87,7 +92,7 @@ function create() {
 
   function onMove(event) {
     if (!picking) return;
-    const el = elementAt(event.clientX, event.clientY);
+    const el = elementAt(event.clientX, event.clientY, event.altKey);
     hovered = el;
     if (!el) {
       highlight.hidden = true;
@@ -113,7 +118,7 @@ function create() {
     if (!picking || inside(event)) return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    const el = elementAt(event.clientX, event.clientY) ?? hovered;
+    const el = elementAt(event.clientX, event.clientY, event.altKey) ?? hovered;
     if (el) pick(el);
   }
 

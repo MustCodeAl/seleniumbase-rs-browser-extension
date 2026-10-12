@@ -183,6 +183,22 @@ impl Ext {
             .unwrap_or_else(|| panic!("no tab starts with {prefix}"))
     }
 
+    /// Saves a screenshot of this page as `<name>.png` in the folder named by
+    /// `E2E_SCREENSHOTS`, if that variable is set.
+    ///
+    /// # Panics
+    ///
+    /// If the screenshot cannot be taken or written.
+    pub async fn snapshot(&self, name: &str) {
+        let Some(dir) = std::env::var_os("E2E_SCREENSHOTS") else {
+            return;
+        };
+        let dir = PathBuf::from(dir);
+        std::fs::create_dir_all(&dir).expect("makes the screenshot folder");
+        let png = self.page.screenshot().await.expect("takes the screenshot");
+        std::fs::write(dir.join(format!("{name}.png")), png).expect("writes the screenshot");
+    }
+
     /// The recorder's state.
     pub async fn recorder(&self) -> Value {
         self.ok("recorder/state", json!({})).await
