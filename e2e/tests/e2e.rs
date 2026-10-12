@@ -37,9 +37,10 @@ fn golden(name: &str) -> PathBuf {
 /// `UPDATE_GOLDEN=1` to rewrite them from `ActionRecorder` (after a change to it).
 #[test]
 fn parity_with_the_action_recorder() {
-    let actions: Vec<Value> =
-        serde_json::from_str(&std::fs::read_to_string(golden("parity-actions.json")).expect("the actions file"))
-            .expect("valid JSON");
+    let actions: Vec<Value> = serde_json::from_str(
+        &std::fs::read_to_string(golden("parity-actions.json")).expect("the actions file"),
+    )
+    .expect("valid JSON");
     let mut recorder = ActionRecorder::default();
     for action in &actions {
         recorder.record(
@@ -49,9 +50,15 @@ fn parity_with_the_action_recorder() {
         );
     }
     let cases = [
-        ("parity-cdp-test.rs.txt", recorder.to_cdp_test("recorded_test")),
+        (
+            "parity-cdp-test.rs.txt",
+            recorder.to_cdp_test("recorded_test"),
+        ),
         ("parity-cdp-main.rs.txt", recorder.to_cdp_script()),
-        ("parity-basecase-test.rs.txt", recorder.to_rust_test("recorded_test")),
+        (
+            "parity-basecase-test.rs.txt",
+            recorder.to_rust_test("recorded_test"),
+        ),
         ("parity-basecase-main.rs.txt", recorder.to_rust_script()),
     ];
     for (file, produced) in cases {
@@ -59,7 +66,10 @@ fn parity_with_the_action_recorder() {
             std::fs::write(golden(file), &produced).expect("writes the golden file");
         }
         let expected = std::fs::read_to_string(golden(file)).expect("the golden file");
-        assert_eq!(produced, expected, "{file} no longer matches ActionRecorder");
+        assert_eq!(
+            produced, expected,
+            "{file} no longer matches ActionRecorder"
+        );
     }
 }
 
@@ -100,32 +110,64 @@ async fn records_exports_and_replays_in_chrome() {
     let started = ext.ok("recorder/start", json!({ "tabId": tab })).await;
     assert_eq!(started["active"], json!(true));
 
-    page.locator("#email").click().await.expect("focus the email");
-    page.locator("#email").type_text("alice@example.com").await.expect("type the email");
-    page.locator("#pw").click().await.expect("focus the password");
-    page.locator("#pw").type_text("hunter2").await.expect("type the password");
-    // A real arrow key changes a select the way a person does, and the browser
-    // fires a trusted change event.
-    page.locator("#color").press(Key::ArrowDown).await.expect("choose Green");
+    page.locator("#email")
+        .click()
+        .await
+        .expect("focus the email");
+    page.locator("#email")
+        .type_text("alice@example.com")
+        .await
+        .expect("type the email");
+    page.locator("#pw")
+        .click()
+        .await
+        .expect("focus the password");
+    page.locator("#pw")
+        .type_text("hunter2")
+        .await
+        .expect("type the password");
+    // A real click on an option of a list box (a headless browser has no popup
+    // for a drop-down, so the fixture's select is a list box); the browser fires
+    // a trusted change event, as it does for a person.
+    page.locator("#color option[value=g]")
+        .click()
+        .await
+        .expect("choose Green");
     page.locator("#agree").click().await.expect("tick the box");
-    page.locator("[data-test=go]").click().await.expect("press Go");
-    page.locator("[name=q]").type_text("rust").await.expect("type the query");
-    page.locator("[name=q]").press(Key::Enter).await.expect("press Enter");
+    page.locator("[data-test=go]")
+        .click()
+        .await
+        .expect("press Go");
+    page.locator("[name=q]")
+        .type_text("rust")
+        .await
+        .expect("type the query");
+    page.locator("[name=q]")
+        .press(Key::Enter)
+        .await
+        .expect("press Enter");
     eventually("the second page", Duration::from_secs(15), || async {
         let href = page.evaluate("location.href").await.ok()?;
         href.as_str()?.contains("/next?q=rust").then_some(())
     })
     .await;
     // The recorder follows the tab onto the new page: wait until it is attached.
-    eventually("the content script on the second page", Duration::from_secs(10), || async {
-        let state = ext.recorder().await;
-        state["warning"].is_null().then_some(())
-    })
+    eventually(
+        "the content script on the second page",
+        Duration::from_secs(10),
+        || async {
+            let state = ext.recorder().await;
+            state["warning"].is_null().then_some(())
+        },
+    )
     .await;
     tokio::time::sleep(Duration::from_millis(1200)).await;
     page.locator("#back").click().await.expect("follow Back");
     eventually("the first page again", Duration::from_secs(15), || async {
-        let href = page.evaluate("location.pathname + location.search").await.ok()?;
+        let href = page
+            .evaluate("location.pathname + location.search")
+            .await
+            .ok()?;
         (href == json!("/")).then_some(())
     })
     .await;
@@ -139,7 +181,8 @@ async fn records_exports_and_replays_in_chrome() {
     assert_eq!(
         types,
         [
-            "navigate", "change", "change", "select", "check", "click", "change", "keyPress", "click"
+            "navigate", "change", "change", "select", "check", "click", "change", "keyPress",
+            "click"
         ],
         "{state:#}"
     );
@@ -148,7 +191,10 @@ async fn records_exports_and_replays_in_chrome() {
     // The password: a step with no value, flagged, and the secret nowhere.
     assert_eq!(steps[2]["sensitive"], json!(true));
     assert_eq!(steps[2]["value"], json!(""));
-    assert!(!state.to_string().contains("hunter2"), "the password was recorded");
+    assert!(
+        !state.to_string().contains("hunter2"),
+        "the password was recorded"
+    );
     assert_eq!(steps[3]["text"], json!("Green"));
     assert_eq!(steps[7]["key"], json!("Enter"));
 
@@ -168,7 +214,10 @@ async fn records_exports_and_replays_in_chrome() {
 
     // Export in every format.
     let cdp = ext
-        .ok("recorder/export", json!({ "format": "cdp", "name": "e2e flow", "entry": "test" }))
+        .ok(
+            "recorder/export",
+            json!({ "format": "cdp", "name": "e2e flow", "entry": "test" }),
+        )
         .await;
     let cdp_text = cdp["text"].as_str().expect("text").to_owned();
     println!("--- exported (pure CDP) ---\n{cdp_text}");
@@ -190,16 +239,24 @@ async fn records_exports_and_replays_in_chrome() {
     }
     assert!(!cdp_text.contains("hunter2"));
     let basecase = ext
-        .ok("recorder/export", json!({ "format": "basecase", "name": "e2e flow", "entry": "test" }))
+        .ok(
+            "recorder/export",
+            json!({ "format": "basecase", "name": "e2e flow", "entry": "test" }),
+        )
         .await;
     let basecase_text = basecase["text"].as_str().expect("text").to_owned();
     println!("--- exported (BaseCase) ---\n{basecase_text}");
     assert!(basecase_text.contains("sb.select_option_by_text(\"#color\", \"Green\").await?;"));
-    assert!(basecase_text.contains("sb.send_keys(\"[data-testid=\\\"query\\\"]\", \"\\u{e007}\").await?;"));
+    assert!(basecase_text
+        .contains("sb.send_keys(\"[data-testid=\\\"query\\\"]\", \"\\u{e007}\").await?;"));
     let replay = ext
-        .ok("recorder/export", json!({ "format": "devtools", "name": "e2e flow" }))
+        .ok(
+            "recorder/export",
+            json!({ "format": "devtools", "name": "e2e flow" }),
+        )
         .await;
-    let replay_json: Value = serde_json::from_str(replay["text"].as_str().expect("text")).expect("JSON");
+    let replay_json: Value =
+        serde_json::from_str(replay["text"].as_str().expect("text")).expect("JSON");
     assert_eq!(replay_json["title"], json!("e2e flow"));
     assert_eq!(replay_json["steps"][0]["type"], json!("setViewport"));
     assert_eq!(replay_json["steps"][1]["type"], json!("navigate"));
@@ -229,16 +286,37 @@ async fn records_exports_and_replays_in_chrome() {
     if replayed_log.first().map(String::as_str) == Some("load /") {
         replayed_log.remove(0);
     }
-    assert_eq!(replayed_log, recorded_log, "the replay did not do what the recording did");
+    assert_eq!(
+        replayed_log, recorded_log,
+        "the replay did not do what the recording did"
+    );
 }
 
 // ---------------------------------------------------------------------------
 // The inspector, the page report, the DevTools plugin page, hostile text.
 
 const PROBES: &[&str] = &[
-    "deep-1", "deep-2", "named", "dup-1", "dup-2", "dotted", "digit", "spaced", "quoted", "backslash",
-    "link-text", "twice-1", "twice-2", "item-1", "item-2", "icon-button", "generated", "react-id",
-    "href-link", "inside-odd-id", "aria",
+    "deep-1",
+    "deep-2",
+    "named",
+    "dup-1",
+    "dup-2",
+    "dotted",
+    "digit",
+    "spaced",
+    "quoted",
+    "backslash",
+    "link-text",
+    "twice-1",
+    "twice-2",
+    "item-1",
+    "item-2",
+    "icon-button",
+    "generated",
+    "react-id",
+    "href-link",
+    "inside-odd-id",
+    "aria",
 ];
 
 #[tokio::test]
@@ -248,8 +326,12 @@ async fn inspector_selectors_match_one_element_each() {
     require_dist("chrome");
     let server = Server::start();
     let browser = launch(None).await;
-    let id = load_extension(&browser, &dist("chrome-e2e")).await.expect("loads e2e");
-    let store_id = load_extension(&browser, &dist("chrome")).await.expect("loads the store build");
+    let id = load_extension(&browser, &dist("chrome-e2e"))
+        .await
+        .expect("loads e2e");
+    let store_id = load_extension(&browser, &dist("chrome"))
+        .await
+        .expect("loads the store build");
     let page = browser
         .default_page()
         .await
@@ -269,20 +351,30 @@ async fn inspector_selectors_match_one_element_each() {
             .click()
             .await
             .unwrap_or_else(|error| panic!("clicking {probe}: {error}"));
-        let last = eventually(&format!("the pick of {probe}"), Duration::from_secs(10), || async {
-            let reply = ext.ok("inspector/last", json!({})).await;
-            let last = reply["last"].clone();
-            (last["at"].as_u64()? > previous).then_some(last)
-        })
+        let last = eventually(
+            &format!("the pick of {probe}"),
+            Duration::from_secs(10),
+            || async {
+                let reply = ext.ok("inspector/last", json!({})).await;
+                let last = reply["last"].clone();
+                (last["at"].as_u64()? > previous).then_some(last)
+            },
+        )
         .await;
         previous = last["at"].as_u64().expect("a time");
         let candidates = last["candidates"].as_array().expect("candidates");
         assert!(!candidates.is_empty(), "{probe}: no selectors");
-        assert!(last["best"].is_string(), "{probe}: no selector matches only this element: {last}");
+        assert!(
+            last["best"].is_string(),
+            "{probe}: no selector matches only this element: {last}"
+        );
         for candidate in candidates {
             let value = candidate["value"].as_str().expect("value");
             for generated in ["css-1x2y3z", "sc-bdfBwQ", ":r1:", "css-9z8y7x"] {
-                assert!(!value.contains(generated), "{probe}: {value} uses {generated}");
+                assert!(
+                    !value.contains(generated),
+                    "{probe}: {value} uses {generated}"
+                );
             }
             if candidate["unique"] != json!(true) {
                 continue;
@@ -301,8 +393,16 @@ async fn inspector_selectors_match_one_element_each() {
                 syntax = serde_json::to_string(syntax).expect("a string"),
             );
             let seen = page.evaluate(script).await.expect("the check runs");
-            assert_eq!(seen["count"], json!(1), "{probe}: {syntax} {value} matches {seen}");
-            assert_eq!(seen["probe"], json!(probe), "{probe}: {syntax} {value} found another element");
+            assert_eq!(
+                seen["count"],
+                json!(1),
+                "{probe}: {syntax} {value} matches {seen}"
+            );
+            assert_eq!(
+                seen["probe"],
+                json!(probe),
+                "{probe}: {syntax} {value} found another element"
+            );
             unique += 1;
         }
         checked += 1;
@@ -317,15 +417,25 @@ async fn inspector_selectors_match_one_element_each() {
     let report = ext.ok("inspector/probe", json!({ "tabId": tab })).await;
     let probe = &report["probe"];
     println!("page report: {probe:#}");
-    assert!(probe["navigator"]["userAgent"].as_str().expect("ua").contains("Chrome/155"));
-    assert!(probe["headless"]["markers"].as_array().expect("markers").iter().any(|m| m == "ua_headless"));
+    assert!(probe["navigator"]["userAgent"]
+        .as_str()
+        .expect("ua")
+        .contains("Chrome/155"));
+    assert!(probe["headless"]["markers"]
+        .as_array()
+        .expect("markers")
+        .iter()
+        .any(|m| m == "ua_headless"));
     assert!(probe["navigator"]["hardwareConcurrency"].is_number());
     assert!(probe["timezone"]["name"].is_string());
     assert!(probe["canvas"]["hash"].is_string());
     let fingerprint: Fingerprint = serde_json::from_value(report["fingerprint"].clone())
         .expect("the Fingerprint JSON deserialises into seleniumbase-rs's Fingerprint");
     println!("fingerprint JSON: {}", report["fingerprint"]);
-    assert_eq!(fingerprint.user_agent.as_deref(), probe["navigator"]["userAgent"].as_str());
+    assert_eq!(
+        fingerprint.user_agent.as_deref(),
+        probe["navigator"]["userAgent"].as_str()
+    );
     assert_eq!(fingerprint.core_version, Some(155));
     assert_eq!(report["fingerprint"]["browser_type"], json!("chromium"));
     assert_eq!(report["fingerprint"]["os_type"], json!("Macos"));
@@ -334,11 +444,19 @@ async fn inspector_selectors_match_one_element_each() {
     // says plainly that it has no access to the page instead of failing quietly.
     let store = Ext::open(&browser, &store_id, "ui/panel.html").await;
     let ping = store.ok("core/ping", json!({})).await;
-    assert!(ping["name"].as_str().expect("name").starts_with("seleniumbase-rs Companion"));
-    let denied = store.call(json!({ "type": "inspector/probe", "tabId": tab })).await;
+    assert!(ping["name"]
+        .as_str()
+        .expect("name")
+        .starts_with("seleniumbase-rs Companion"));
+    let denied = store
+        .call(json!({ "type": "inspector/probe", "tabId": tab }))
+        .await;
     println!("store build, no access: {denied}");
     assert_eq!(denied["ok"], json!(false));
-    assert!(denied["error"].as_str().expect("error").contains("no access"));
+    assert!(denied["error"]
+        .as_str()
+        .expect("error")
+        .contains("no access"));
 
     // The DevTools Recorder plugin page, outside DevTools: the registration needs
     // a real DevTools, but the plugin it registers can be called.
@@ -363,7 +481,9 @@ async fn inspector_selectors_match_one_element_each() {
     assert!(exported_cdp.contains("page.locator(\"#email\").set_value(\"alice\").await?;"));
     assert!(exported_cdp.contains("async fn from_devtools()"));
     let exported_base = plugin
-        .run_script(&format!("__sbrsRecorderPlugins.basecase.stringify({recording})"))
+        .run_script(&format!(
+            "__sbrsRecorderPlugins.basecase.stringify({recording})"
+        ))
         .await;
     let exported_base = exported_base.as_str().expect("a string").to_owned();
     let one_step = plugin
@@ -384,21 +504,37 @@ async fn inspector_selectors_match_one_element_each() {
         { "id": "h6", "type": "change", "value": "", "sensitive": true, "secret": hostile, "target": { "selectors": [{ "kind": "css", "syntax": "css", "value": "#pw", "count": 1, "unique": true }] } },
         { "id": "h7", "type": "keyPress", "key": hostile }
     ]);
-    ext.run_script(&format!("chrome.storage.local.set({{ 'recorder.steps': {steps} }})")).await;
+    ext.run_script(&format!(
+        "chrome.storage.local.set({{ 'recorder.steps': {steps} }})"
+    ))
+    .await;
     let hostile_cdp = ext
-        .ok("recorder/export", json!({ "format": "cdp", "name": hostile, "entry": "test" }))
+        .ok(
+            "recorder/export",
+            json!({ "format": "cdp", "name": hostile, "entry": "test" }),
+        )
         .await;
     let hostile_base = ext
-        .ok("recorder/export", json!({ "format": "basecase", "name": hostile, "entry": "main" }))
+        .ok(
+            "recorder/export",
+            json!({ "format": "basecase", "name": hostile, "entry": "main" }),
+        )
         .await;
     let hostile_json = ext
-        .ok("recorder/export", json!({ "format": "devtools", "name": hostile }))
+        .ok(
+            "recorder/export",
+            json!({ "format": "devtools", "name": hostile }),
+        )
         .await;
-    serde_json::from_str::<Value>(hostile_json["text"].as_str().expect("text")).expect("the JSON export is JSON");
+    serde_json::from_str::<Value>(hostile_json["text"].as_str().expect("text"))
+        .expect("the JSON export is JSON");
     let hostile_cdp = hostile_cdp["text"].as_str().expect("text").to_owned();
     let hostile_base = hostile_base["text"].as_str().expect("text").to_owned();
     for line in hostile_cdp.lines().chain(hostile_base.lines()) {
-        assert!(!line.trim_start().starts_with("fn pwned"), "text escaped its literal: {line}");
+        assert!(
+            !line.trim_start().starts_with("fn pwned"),
+            "text escaped its literal: {line}"
+        );
     }
 
     browser.close().await.expect("Chrome closes");
@@ -443,7 +579,10 @@ async fn edge_loads_the_extension_and_records() {
     println!("Edge: {ping}");
     let tab = ext.tab_id_for(&server.base()).await;
     ext.ok("recorder/start", json!({ "tabId": tab })).await;
-    page.locator("[data-test=go]").click().await.expect("press Go");
+    page.locator("[data-test=go]")
+        .click()
+        .await
+        .expect("press Go");
     let types = eventually("a click step in Edge", Duration::from_secs(10), || async {
         let types = step_types(&ext.recorder().await);
         types.contains(&"click".to_owned()).then_some(types)

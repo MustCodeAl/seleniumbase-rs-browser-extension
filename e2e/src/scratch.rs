@@ -75,9 +75,12 @@ tokio = { version = "1.53", features = ["macros", "rt-multi-thread", "time"] }
         let target =
             std::env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| SEPARATE_TARGET.to_owned());
         let mut command = Command::new("cargo");
+        // `--offline` goes right after the subcommand, before any `--` that
+        // separates the test harness's own arguments.
         command
-            .args(args)
+            .args(args.iter().take(1))
             .arg("--offline")
+            .args(args.iter().skip(1))
             .current_dir(self.dir.path())
             .env("CARGO_BUILD_JOBS", "1")
             .env("CARGO_INCREMENTAL", "0")

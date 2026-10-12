@@ -31,6 +31,7 @@ function create() {
   let lastScrollX = window.scrollX;
   let scrollTimer = 0;
   let installed = false;
+  let implicitSubmitUntil = 0; // Enter in a field was pressed: a submit-button click that follows is its effect
 
   const send = (type, payload) => {
     try {
@@ -127,6 +128,15 @@ function create() {
 
   function onClick(event) {
     if (!enabled || !event.isTrusted || event.button !== 0) return;
+    // Enter in a text field submits its form by "clicking" the submit button. The
+    // Enter key press is the step; the click it causes is not another one.
+    if (event.detail === 0 && Date.now() < implicitSubmitUntil) {
+      const control = eventElement(event);
+      const type = control ? (control.getAttribute("type") || "").toLowerCase() : "";
+      if (control && control.form && ((control.localName === "button" && (type === "" || type === "submit")) || (control.localName === "input" && (type === "submit" || type === "image")))) {
+        return;
+      }
+    }
     flushTyping();
     const raw = eventElement(event);
     if (!raw) return;
@@ -223,6 +233,7 @@ function create() {
       return;
     }
     flushTyping();
+    if (key === "Enter" && textEntry) implicitSubmitUntil = Date.now() + 300;
     const body = el && el !== document.body && el !== document.documentElement ? describe(el) : undefined;
     emit({ type: "keyPress", key, ...(body ? { target: body } : {}) });
   }

@@ -108,13 +108,27 @@ impl Ext {
     ///
     /// If the page does not open.
     pub async fn open(browser: &Browser, id: &str, path: &str) -> Self {
-        let page = browser
-            .new_page(Some(format!("chrome-extension://{id}/{path}")))
+        // sb_cdp's `goto` and `new_page` refuse the chrome-extension: scheme, so the
+        // tab is created at that address through the protocol and then attached to.
+        let url = format!("chrome-extension://{id}/{path}");
+        let created = browser
+            .execute("Target.createTarget", json!({ "url": url }))
             .await
             .expect("the extension page opens");
+        let target = created["targetId"].as_str().expect("a target id");
+        let page = browser
+            .page(target)
+            .await
+            .expect("the extension page attaches")
+            .with_timeout(Duration::from_secs(20));
+        eventually("the extension page", Duration::from_secs(15), || async {
+            let state = page.evaluate("document.readyState").await.ok()?;
+            (state == json!("complete")).then_some(())
+        })
+        .await;
         Self {
             id: id.to_owned(),
-            page: page.with_timeout(Duration::from_secs(20)),
+            page,
         }
     }
 

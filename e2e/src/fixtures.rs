@@ -19,7 +19,7 @@ const HOME: &str = r##"<!doctype html><html lang="en"><head><meta charset="utf-8
 <form id="login" onsubmit="return false">
   <label for="email">Email</label><input id="email" name="email" type="text">
   <input id="pw" name="password" type="password" placeholder="Password">
-  <select id="color" name="color"><option value="r">Red</option><option value="g">Green</option><option value="b">Blue</option></select>
+  <select id="color" name="color" size="3"><option value="r">Red</option><option value="g">Green</option><option value="b">Blue</option></select>
   <label><input id="agree" type="checkbox" name="agree"> I agree</label>
   <button type="button" id="go" data-test="go">Go</button>
   <input type="file" id="upload" name="upload">
@@ -141,7 +141,9 @@ impl Server {
                     match path {
                         "/" => respond(&mut stream, "200 OK", "text/html; charset=utf-8", HOME),
                         "/next" => respond(&mut stream, "200 OK", "text/html; charset=utf-8", NEXT),
-                        "/messy" => respond(&mut stream, "200 OK", "text/html; charset=utf-8", MESSY),
+                        "/messy" => {
+                            respond(&mut stream, "200 OK", "text/html; charset=utf-8", MESSY)
+                        }
                         "/log" => {
                             if let Some(event) = query.strip_prefix("e=") {
                                 log.lock().expect("log lock").push(decode(event));
