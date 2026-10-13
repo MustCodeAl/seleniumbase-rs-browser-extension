@@ -1,5 +1,5 @@
 // The Chrome DevTools Recorder format (the @puppeteer/replay user flow):
-// `toReplay` writes a recording in it, which `sbase import-puppeteer` reads, and
+// `toReplay` writes a recording in it, which `sbrs import-puppeteer` reads, and
 // `fromReplay` reads one that the DevTools Recorder hands to an extension plugin.
 
 import { normalizeSpace, xpathLiteral } from "../escape.js";
