@@ -34,7 +34,7 @@ run = "bun run scripts/lint.ts"
 description = "Load the extension into headless Chrome from Rust and record, export, run"
 depends = ["build"]
 dir = "e2e"
-env = { CARGO_BUILD_JOBS = "1", CARGO_TARGET_DIR = "/Users/notlaggy/Documents/GitFolder/sbrs-agent-target-ext" }
+env = { CARGO_BUILD_JOBS = "1" }
 run = [
   "cd .. && bun run scripts/build.ts --e2e",
   "cargo test --test e2e -- --ignored --test-threads=1",
@@ -43,7 +43,7 @@ run = [
 [tasks."e2e:lint"]
 description = "cargo fmt and clippy on the e2e crate"
 dir = "e2e"
-env = { CARGO_BUILD_JOBS = "1", CARGO_TARGET_DIR = "/Users/notlaggy/Documents/GitFolder/sbrs-agent-target-ext" }
+env = { CARGO_BUILD_JOBS = "1" }
 run = [
   "cargo fmt --all -- --check",
   "cargo clippy --all-targets -- -D warnings",

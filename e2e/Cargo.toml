@@ -13,7 +13,7 @@ description = "Loads the companion extension into a real Chrome through selenium
 [dependencies]
 # The crate the extension exports tests for. test-util is what the repository's
 # own browser tests use.
-seleniumbase-rs = { path = "/Users/notlaggy/Documents/GitFolder/seleniumbase-rs", features = ["test-util"] }
+seleniumbase-rs = { git = "https://github.com/MustCodeAl/seleniumbase-rs", tag = "v0.1.1", features = ["test-util"] }
 serde_json = "1"
 tempfile = "3"
 tokio = { version = "1.53", features = ["macros", "rt-multi-thread", "time", "net", "io-util", "process", "fs", "sync"] }

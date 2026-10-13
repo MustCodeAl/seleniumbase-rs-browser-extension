@@ -6,8 +6,7 @@ seleniumbase-rs's pure CDP engine, and a shell check that loads it into a real F
 ```sh
 bun run scripts/build.ts --e2e      # dist/chrome, dist/firefox, dist/chrome-e2e, dist/firefox-e2e
 cd e2e
-export CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 \
-       CARGO_TARGET_DIR=/Users/notlaggy/Documents/GitFolder/sbrs-agent-target-ext
+export CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0
 cargo test --test e2e                                       # parity with ActionRecorder; no browser
 cargo test --test e2e -- --ignored --test-threads=1         # the browser tests, one at a time
 ```
@@ -47,7 +46,7 @@ A headless browser has no toolbar and cannot answer the permission prompt. `dist
 ## Firefox
 
 ```sh
-docker build --no-slim -t sbrs-firefox-check /path/to/seleniumbase-rs/docker/firefox-check
+docker build -t sbrs-firefox-check /path/to/seleniumbase-rs/docker/firefox-check
 docker run --rm --shm-size 512m \
   -v "$PWD/dist/firefox-e2e:/ext:ro" -v "$PWD/e2e/firefox/check.sh:/check.sh:ro" \
   sbrs-firefox-check /bin/sh /check.sh

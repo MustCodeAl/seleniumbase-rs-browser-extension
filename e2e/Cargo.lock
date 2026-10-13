@@ -2173,7 +2173,8 @@ dependencies = [
 
 [[package]]
 name = "seleniumbase-rs"
-version = "0.1.0"
+version = "0.1.1"
+source = "git+https://github.com/MustCodeAl/seleniumbase-rs?tag=v0.1.1#80cae0c312b6cea277b6209b0fea5ed5e0ae8515"
 dependencies = [
  "async-trait",
  "base64 0.23.1",

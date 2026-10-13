@@ -7,7 +7,7 @@
 # It runs inside the image of seleniumbase-rs's docker/firefox-check (firefox-esr
 # and geckodriver, nothing of this project), with the build mounted read-only:
 #
-#   docker build --no-slim -t sbrs-firefox-check /path/to/seleniumbase-rs/docker/firefox-check
+#   docker build -t sbrs-firefox-check /path/to/seleniumbase-rs/docker/firefox-check
 #   docker run --rm --shm-size 512m \
 #     -v "$PWD/dist/firefox-e2e:/ext:ro" -v "$PWD/e2e/firefox/check.sh:/check.sh:ro" \
 #     sbrs-firefox-check /bin/sh /check.sh

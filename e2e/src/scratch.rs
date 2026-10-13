@@ -1,6 +1,6 @@
 //! A scratch crate that compiles, and runs, the Rust the extension exports.
 //!
-//! It depends on seleniumbase-rs by path, as a person's own project would, and
+//! It depends on seleniumbase-rs from GitHub, as a person's own project would, and
 //! shares this crate's `Cargo.lock` and target directory so it builds offline and
 //! only the exported file itself needs compiling.
 
@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 use tokio::process::Command;
 
-const SEPARATE_TARGET: &str = "/Users/notlaggy/Documents/GitFolder/sbrs-agent-target-ext";
+const SEPARATE_TARGET: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/target");
 
 /// A throwaway crate with a `tests/` folder.
 pub struct Scratch {
@@ -40,7 +40,7 @@ publish = false
 [workspace]
 
 [dependencies]
-seleniumbase-rs = { path = "/Users/notlaggy/Documents/GitFolder/seleniumbase-rs", features = ["test-util"] }
+seleniumbase-rs = { git = "https://github.com/MustCodeAl/seleniumbase-rs", tag = "v0.1.1", features = ["test-util"] }
 tokio = { version = "1.53", features = ["macros", "rt-multi-thread", "time"] }
 "#;
         std::fs::write(dir.path().join("Cargo.toml"), manifest).expect("writes the manifest");
