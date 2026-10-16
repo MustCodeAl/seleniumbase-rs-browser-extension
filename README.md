@@ -1,3 +1,7 @@
+---
+title: "seleniumbase-rs companion"
+---
+
 # seleniumbase-rs companion
 
 Browser extensions for [seleniumbase-rs](https://github.com/MustCodeAl/seleniumbase-rs), the Rust port of
