@@ -2,12 +2,38 @@
 // `toReplay` writes a recording in it, which `sbrs import-puppeteer` reads, and
 // `fromReplay` reads one that the DevTools Recorder hands to an extension plugin.
 
-import { normalizeSpace, xpathLiteral } from "../escape.js";
-import { selectorSyntax, step } from "../steps.js";
+import { normalizeSpace, xpathLiteral } from "../escape.ts";
+import { isRecord } from "../guards.ts";
+import type { Candidate, SelectorSyntax } from "../selectors.ts";
+import { type Step, type Target, selectorSyntax, step } from "../steps.ts";
 
-const DEFAULT_VIEWPORT = { width: 1280, height: 720 };
+/** The size of the window a recording was made in. */
+export interface Viewport {
+  width: number;
+  height: number;
+}
 
-function viewportStep(width, height) {
+/** One step of a DevTools Recorder user flow; `type` says which fields it has. */
+export interface ReplayStep {
+  type: string;
+  [field: string]: unknown;
+}
+
+/** A DevTools Recorder user flow. */
+export interface ReplayRecording {
+  title: string;
+  steps: ReplayStep[];
+}
+
+/** What `toReplay` takes besides the steps. */
+export interface ReplayOptions {
+  title?: string | undefined;
+  viewport?: Viewport | undefined;
+}
+
+const DEFAULT_VIEWPORT: Viewport = { width: 1280, height: 720 };
+
+function viewportStep(width: number | undefined, height: number | undefined): ReplayStep {
   return {
     type: "setViewport",
     width,
@@ -20,10 +46,10 @@ function viewportStep(width, height) {
 }
 
 /** The `selectors` array of a Recorder step: aria first, then the rest in order of preference. */
-function replaySelectors(s) {
-  const out = [];
-  const seen = new Set();
-  const push = (text) => {
+function replaySelectors(s: Step): string[][] {
+  const out: string[][] = [];
+  const seen = new Set<string>();
+  const push = (text: string) => {
     if (!seen.has(text)) {
       seen.add(text);
       out.push([text]);
@@ -46,14 +72,10 @@ function replaySelectors(s) {
   return out;
 }
 
-/**
- * A recording as a DevTools Recorder user flow.
- * @param {object[]} steps
- * @param {{title?: string, viewport?: {width: number, height: number}}} [options]
- */
-export function toReplay(steps, options = {}) {
+/** A recording as a DevTools Recorder user flow. */
+export function toReplay(steps: Step[], options: ReplayOptions = {}): ReplayRecording {
   const viewport = options.viewport ?? DEFAULT_VIEWPORT;
-  const out = [];
+  const out: ReplayStep[] = [];
   if (!steps.some((s) => s.type === "viewport")) out.push(viewportStep(viewport.width, viewport.height));
   for (const s of steps) {
     const selectors = replaySelectors(s);
@@ -129,28 +151,31 @@ export function toReplay(steps, options = {}) {
 
 // ---------------------------------------------------------------- reading a recording
 
-function ariaToXPath(text) {
+function ariaToXPath(text: string): string {
   const match = /^([\s\S]*?)(?:\[role="([^"]+)"\])?$/.exec(text);
-  const name = match ? match[1] : text;
-  const role = match ? match[2] : undefined;
+  const name = match?.[1] ?? text;
+  const role = match?.[2];
   const lit = xpathLiteral(name);
   const nameTest = `(@aria-label=${lit} or normalize-space(.)=${lit})`;
   return role ? `//*[@role=${xpathLiteral(role)} and ${nameTest}]` : `//*[${nameTest}]`;
 }
 
-function candidate(kind, syntax, value) {
+function candidate(kind: string, syntax: SelectorSyntax, value: string): Candidate {
   return { kind, syntax, value, count: 1, unique: true };
 }
 
 /** A target from the `selectors` of a Recorder step, or null when none can be used. */
-function targetFromSelectors(selectors) {
-  const css = [];
-  const xpath = [];
-  const text = [];
-  const aria = [];
-  for (const entry of selectors ?? []) {
-    if (!Array.isArray(entry) || entry.length !== 1 || typeof entry[0] !== "string") continue;
-    const value = entry[0];
+function targetFromSelectors(selectors: unknown): Target | null {
+  const css: Candidate[] = [];
+  const xpath: Candidate[] = [];
+  const text: Candidate[] = [];
+  const aria: Candidate[] = [];
+  const list: unknown[] = Array.isArray(selectors) ? selectors : [];
+  for (const entry of list) {
+    if (!Array.isArray(entry) || entry.length !== 1) continue;
+    const only: unknown = entry[0];
+    if (typeof only !== "string") continue;
+    const value = only;
     if (value.startsWith("pierce/")) continue;
     if (value.startsWith("xpath/")) xpath.push(candidate("xpath", "xpath", value.slice(6)));
     else if (value.startsWith("aria/")) {
@@ -163,15 +188,27 @@ function targetFromSelectors(selectors) {
   return all.length === 0 ? null : { selectors: all };
 }
 
-function unsupported(type, why) {
+function unsupported(type: string, why: string): Step {
   return step("unsupported", { description: `the Recorder step ${type} ${why}` });
 }
 
+/** A number the Recorder gave, or undefined when it gave something else. */
+function numberOf(value: unknown): number | undefined {
+  return typeof value === "number" ? value : undefined;
+}
+
+/** A position the Recorder gave: 0 when it gave none, undefined when it gave something that is not a number. */
+function positionOf(value: unknown): number | undefined {
+  return value === undefined || value === null ? 0 : numberOf(value);
+}
+
 /** The steps of a DevTools Recorder user flow. */
-export function fromReplay(recording) {
-  const out = [];
-  for (const raw of recording?.steps ?? []) {
-    const type = String(raw?.type ?? "");
+export function fromReplay(recording: unknown): Step[] {
+  const out: Step[] = [];
+  const list: unknown[] = isRecord(recording) && Array.isArray(recording.steps) ? recording.steps : [];
+  for (const entry of list) {
+    const raw: Record<string, unknown> = isRecord(entry) ? entry : {};
+    const type = String(raw.type ?? "");
     if (type === "keyUp" || type === "close") continue;
     if (raw.target !== undefined && raw.target !== "main") {
       out.push(unsupported(type, "is in another tab or window and has no equivalent"));
@@ -183,15 +220,16 @@ export function fromReplay(recording) {
     }
     const target = () => targetFromSelectors(raw.selectors);
     // The Recorder notes a step that caused a navigation; the generators wait after it.
-    const loads = Array.isArray(raw.assertedEvents) && raw.assertedEvents.some((e) => e && e.type === "navigation");
+    const events: unknown[] = Array.isArray(raw.assertedEvents) ? raw.assertedEvents : [];
+    const loads = events.some((e) => isRecord(e) && e.type === "navigation");
     const effect = loads && type !== "navigate" ? { navigates: true } : {};
     switch (type) {
       case "setViewport":
         if (raw.isMobile === true) out.push(unsupported(type, "is a mobile viewport and has no equivalent"));
-        else out.push(step("viewport", { width: raw.width, height: raw.height }));
+        else out.push(step("viewport", { width: numberOf(raw.width), height: numberOf(raw.height) }));
         break;
       case "navigate":
-        out.push(step("navigate", { url: raw.url }));
+        out.push(step("navigate", typeof raw.url === "string" ? { url: raw.url } : {}));
         break;
       case "click":
       case "doubleClick":
@@ -200,11 +238,11 @@ export function fromReplay(recording) {
         if (!t) {
           out.push(unsupported(type, "has no selector the generator can use"));
         } else if (type === "click" && raw.button === "secondary") {
-          out.push(step("rightClick", { target: t, offsetX: raw.offsetX, offsetY: raw.offsetY }));
+          out.push(step("rightClick", { target: t, offsetX: numberOf(raw.offsetX), offsetY: numberOf(raw.offsetY) }));
         } else if (type === "click" && raw.button !== undefined && raw.button !== "primary") {
-          out.push(unsupported(type, `uses the ${raw.button} button and has no equivalent`));
+          out.push(unsupported(type, `uses the ${String(raw.button)} button and has no equivalent`));
         } else {
-          out.push(step(type, { target: t, offsetX: raw.offsetX, offsetY: raw.offsetY, ...effect }));
+          out.push(step(type, { target: t, offsetX: numberOf(raw.offsetX), offsetY: numberOf(raw.offsetY), ...effect }));
         }
         break;
       }
@@ -223,7 +261,7 @@ export function fromReplay(recording) {
           if (t) out.push(step("scrollIntoView", { target: t }));
           else out.push(unsupported(type, "has no selector the generator can use"));
         } else {
-          out.push(step("scroll", { x: raw.x ?? 0, y: raw.y ?? 0 }));
+          out.push(step("scroll", { x: positionOf(raw.x), y: positionOf(raw.y) }));
         }
         break;
       }

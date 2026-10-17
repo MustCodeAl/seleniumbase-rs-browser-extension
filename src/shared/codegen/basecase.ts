@@ -3,16 +3,13 @@
 // in seleniumbase-rs): a `BaseCase` made from the default `BrowserConfig`, one
 // `sb.<method>` call per step, then `quit`.
 
-import { fnIdent, rustStr } from "../rust.js";
-import { pickSelector } from "../steps.js";
-import { SELENIUM_KEYS, entryAttribute, filesTodo, intLiteral, secretNote, skipped } from "./common.js";
+import { fnIdent, rustStr } from "../rust.ts";
+import { type Step, pickSelector } from "../steps.ts";
+import { type ProgramOptions, SELENIUM_KEYS, entryAttribute, filesTodo, intLiteral, secretNote, skipped } from "./common.ts";
 
-/**
- * The statements for one step, without indentation.
- * @returns {{lines: string[]}}
- */
-export function basecaseStatements(s) {
-  const lines = [];
+/** The statements for one step, without indentation. */
+export function basecaseStatements(s: Step): { lines: string[] } {
+  const lines: string[] = [];
   const selector = pickSelector(s);
   const sel = selector === null ? null : rustStr(selector);
   const needTarget = () => {
@@ -114,12 +111,8 @@ export function basecaseStatements(s) {
   return { lines };
 }
 
-/**
- * The whole program.
- * @param {object[]} steps
- * @param {{entry?: "test"|"main", name?: string}} [options]
- */
-export function basecaseProgram(steps, options = {}) {
+/** The whole program. */
+export function basecaseProgram(steps: Step[], options: ProgramOptions = {}): string {
   const entry = options.entry === "main" ? "main" : "test";
   let body = "";
   for (const s of steps) {

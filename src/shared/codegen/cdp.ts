@@ -6,17 +6,20 @@
 // Every selector and value goes in through `rustStr`, so recorded text cannot
 // become code.
 
-import { fnIdent, rustStr } from "../rust.js";
-import { pickSelector } from "../steps.js";
-import { CDP_KEYS, entryAttribute, filesTodo, intLiteral, secretNote, skipped } from "./common.js";
+import { fnIdent, rustStr } from "../rust.ts";
+import { type Step, pickSelector } from "../steps.ts";
+import { CDP_KEYS, type ProgramOptions, entryAttribute, filesTodo, intLiteral, secretNote, skipped } from "./common.ts";
 
-/**
- * The statements for one step, without indentation, and the `sb_cdp` names they use.
- * @returns {{lines: string[], imports: string[]}}
- */
-export function cdpStatements(s) {
-  const lines = [];
-  const imports = [];
+/** The statements of one step, without indentation, and the `sb_cdp` names they use. */
+export interface CdpStatements {
+  lines: string[];
+  imports: string[];
+}
+
+/** The statements for one step, without indentation, and the `sb_cdp` names they use. */
+export function cdpStatements(s: Step): CdpStatements {
+  const lines: string[] = [];
+  const imports: string[] = [];
   const out = () => ({ lines, imports });
   const selector = pickSelector(s);
   const loc = selector === null ? null : `page.locator(${rustStr(selector)})`;
@@ -66,7 +69,7 @@ export function cdpStatements(s) {
       if (needTarget()) {
         imports.push("SelectBy");
         const index = intLiteral(s.index);
-        let by;
+        let by: string;
         if (typeof s.text === "string" && s.text !== "") by = `SelectBy::Text(${rustStr(s.text)})`;
         else if (typeof s.value === "string" && s.value !== "") by = `SelectBy::Value(${rustStr(s.value)})`;
         else if (index !== null && Number(index) >= 0) by = `SelectBy::Index(${index})`;
@@ -81,7 +84,7 @@ export function cdpStatements(s) {
       if (needTarget()) lines.push(`${loc}.uncheck().await?;`);
       break;
     case "keyPress":
-      if (!CDP_KEYS.has(s.key)) {
+      if (s.key === undefined || !CDP_KEYS.has(s.key)) {
         lines.push(skipped(`key ${rustStr(String(s.key ?? ""))} has no sb_cdp Key`));
       } else {
         imports.push("Key");
@@ -124,12 +127,8 @@ export function cdpStatements(s) {
   return out();
 }
 
-/**
- * The whole program.
- * @param {object[]} steps
- * @param {{entry?: "test"|"main", name?: string}} [options]
- */
-export function cdpProgram(steps, options = {}) {
+/** The whole program. */
+export function cdpProgram(steps: Step[], options: ProgramOptions = {}): string {
   const entry = options.entry === "main" ? "main" : "test";
   const imports = new Set(["Browser", "LaunchOptions"]);
   let body = "";
