@@ -7,10 +7,12 @@
 // `storage.session`, which is cleared when the browser closes. All reads and
 // writes go through one lock.
 
-import { ext } from "../shared/api.js";
-import { generate } from "../shared/codegen/index.js";
-import { MSG, message } from "../shared/protocol.js";
+import { ext } from "../shared/api.ts";
+import { generate, isExportFormat } from "../shared/codegen/index.ts";
+import { isRecord } from "../shared/guards.ts";
+import { MSG, type Message, type RecorderSettings, type RecorderSnapshot, message } from "../shared/protocol.ts";
 import {
+  type Step,
   appendStep,
   deleteStep,
   editStep,
@@ -19,9 +21,9 @@ import {
   sanitizeStep,
   shouldRecordNavigation,
   step,
-} from "../shared/steps.js";
-import { broadcast, registerHandler } from "../background/router.js";
-import { RECORDABLE, accessError, get, injectFiles, local, makeLock, remove, session, set } from "../background/store.js";
+} from "../shared/steps.ts";
+import { broadcast, registerHandler } from "../background/router.ts";
+import { RECORDABLE, accessError, get, injectFiles, local, makeLock, remove, session, set } from "../background/store.ts";
 
 const K_STEPS = "recorder.steps";
 const K_ACTIVE = "recorder.active";
@@ -29,21 +31,43 @@ const K_SETTINGS = "recorder.settings";
 const K_META = "recorder.meta";
 const CONTENT_FILE = "recorder/content.js";
 
-const DEFAULT_SETTINGS = { recordScroll: false, entry: "test" };
+const DEFAULT_SETTINGS: RecorderSettings = { recordScroll: false, entry: "test" };
+
+/** Which tab is being recorded, kept in `storage.session`. */
+interface Active {
+  tabId: number;
+  startedAt?: number;
+  /** The document of the tab that last said hello, so the same one asking again is not a new page. */
+  doc?: number | null;
+  warning?: string | null;
+}
+
+/** What the recording is called, kept with the steps. */
+interface Meta {
+  name?: string;
+  title?: string;
+}
+
+interface State {
+  steps: Step[];
+  active: Active | null;
+  settings: RecorderSettings;
+  meta: Meta;
+}
 
 const locked = makeLock();
 
-async function load() {
+async function load(): Promise<State> {
   const [steps, active, settings, meta] = await Promise.all([
-    get(local, K_STEPS, []),
-    get(session, K_ACTIVE, null),
-    get(local, K_SETTINGS, DEFAULT_SETTINGS),
-    get(local, K_META, {}),
+    get<Step[]>(local, K_STEPS, []),
+    get<Active | null>(session, K_ACTIVE, null),
+    get<Partial<RecorderSettings>>(local, K_SETTINGS, DEFAULT_SETTINGS),
+    get<Meta>(local, K_META, {}),
   ]);
   return { steps, active, settings: { ...DEFAULT_SETTINGS, ...settings }, meta };
 }
 
-function snapshot(state) {
+function snapshot(state: State): RecorderSnapshot {
   return {
     active: state.active !== null,
     tabId: state.active ? state.active.tabId : null,
@@ -55,15 +79,15 @@ function snapshot(state) {
   };
 }
 
-async function saveSteps(steps) {
+async function saveSteps(steps: Step[]): Promise<void> {
   await set(local, K_STEPS, steps);
 }
 
-async function changed() {
+async function changed(): Promise<void> {
   await broadcast(MSG.STATE_CHANGED, { area: "recorder" });
 }
 
-async function start({ tabId, append }) {
+async function start({ tabId, append }: Message): Promise<RecorderSnapshot> {
   if (typeof tabId !== "number") throw new Error("recorder/start needs a tabId");
   const tab = await ext.tabs.get(tabId);
   const state = await load();
@@ -85,7 +109,7 @@ async function start({ tabId, append }) {
   return snapshot(await load());
 }
 
-async function stop() {
+async function stop(): Promise<RecorderSnapshot> {
   const state = await load();
   if (state.active) {
     try {
@@ -113,8 +137,9 @@ registerHandler(MSG.RECORDER_CLEAR, () =>
 
 registerHandler(MSG.RECORDER_EDIT_STEP, ({ id, patch }) =>
   locked(async () => {
+    if (typeof id !== "string") throw new Error("recorder/edit-step needs an id");
     const state = await load();
-    await saveSteps(editStep(state.steps, id, patch ?? {}));
+    await saveSteps(editStep(state.steps, id, isRecord(patch) ? patch : {}));
     await changed();
     return snapshot(await load());
   }),
@@ -122,6 +147,7 @@ registerHandler(MSG.RECORDER_EDIT_STEP, ({ id, patch }) =>
 
 registerHandler(MSG.RECORDER_DELETE_STEP, ({ id }) =>
   locked(async () => {
+    if (typeof id !== "string") throw new Error("recorder/delete-step needs an id");
     const state = await load();
     await saveSteps(deleteStep(state.steps, id));
     await changed();
@@ -131,6 +157,7 @@ registerHandler(MSG.RECORDER_DELETE_STEP, ({ id }) =>
 
 registerHandler(MSG.RECORDER_MOVE_STEP, ({ id, delta }) =>
   locked(async () => {
+    if (typeof id !== "string") throw new Error("recorder/move-step needs an id");
     const state = await load();
     await saveSteps(moveStep(state.steps, id, delta === -1 ? -1 : 1));
     await changed();
@@ -141,13 +168,14 @@ registerHandler(MSG.RECORDER_MOVE_STEP, ({ id, delta }) =>
 registerHandler(MSG.RECORDER_SETTINGS, ({ patch }) =>
   locked(async () => {
     const state = await load();
-    const next = { ...state.settings };
-    if (patch && typeof patch.recordScroll === "boolean") next.recordScroll = patch.recordScroll;
-    if (patch && (patch.entry === "test" || patch.entry === "main")) next.entry = patch.entry;
+    const changes: Record<string, unknown> = isRecord(patch) ? patch : {};
+    const next: RecorderSettings = { ...state.settings };
+    if (typeof changes.recordScroll === "boolean") next.recordScroll = changes.recordScroll;
+    if (changes.entry === "test" || changes.entry === "main") next.entry = changes.entry;
     await set(local, K_SETTINGS, next);
     let meta = state.meta;
-    if (patch && typeof patch.name === "string") {
-      meta = { ...meta, name: patch.name.slice(0, 120) };
+    if (typeof changes.name === "string") {
+      meta = { ...meta, name: changes.name.slice(0, 120) };
       await set(local, K_META, meta);
     }
     return snapshot(await load());
@@ -157,6 +185,7 @@ registerHandler(MSG.RECORDER_SETTINGS, ({ patch }) =>
 registerHandler(MSG.RECORDER_EXPORT, ({ format, name, entry }) =>
   locked(async () => {
     const state = await load();
+    if (!isExportFormat(format)) throw new Error(`unknown export format ${JSON.stringify(format)}`);
     const file = generate(format, state.steps, {
       name: typeof name === "string" && name !== "" ? name : (state.meta.name || ""),
       entry: entry === "main" ? "main" : "test",
@@ -167,8 +196,10 @@ registerHandler(MSG.RECORDER_EXPORT, ({ format, name, entry }) =>
 
 // From the content script ----------------------------------------------------
 
-function fromRecordedTab(state, sender) {
-  return Boolean(state.active) && sender.tab?.id === state.active.tabId && (sender.frameId ?? 0) === 0;
+/** The recording, if `sender` is the top frame of the tab being recorded. */
+function recordedTab(state: State, sender: chrome.runtime.MessageSender): Active | null {
+  const { active } = state;
+  return active && sender.tab?.id === active.tabId && (sender.frameId ?? 0) === 0 ? active : null;
 }
 
 registerHandler(
@@ -176,20 +207,22 @@ registerHandler(
   ({ url, title, nav, doc }, sender) =>
     locked(async () => {
       const state = await load();
-      if (!fromRecordedTab(state, sender)) return { active: false };
+      const active = recordedTab(state, sender);
+      if (!active) return { active: false };
       // The same document asking again (the script is injected on `loading` and on
       // `complete`) is not a new page.
-      const sameDocument = typeof doc === "number" && state.active.doc === doc;
+      const sameDocument = typeof doc === "number" && active.doc === doc;
       if (!sameDocument) {
-        await set(session, K_ACTIVE, { ...state.active, doc: typeof doc === "number" ? doc : null, warning: null });
+        await set(session, K_ACTIVE, { ...active, doc: typeof doc === "number" ? doc : null, warning: null });
         const now = Date.now();
         let steps = state.steps;
-        if (typeof url === "string" && RECORDABLE.test(url) && shouldRecordNavigation(steps, { url, nav, now })) {
+        const navigation = typeof nav === "string" ? nav : undefined;
+        if (typeof url === "string" && RECORDABLE.test(url) && shouldRecordNavigation(steps, { url, nav: navigation, now })) {
           steps = appendStep(steps, step("navigate", { url }));
           await saveSteps(steps);
           await changed();
         } else {
-          const marked = markNavigation(steps, { nav, now });
+          const marked = markNavigation(steps, { nav: navigation, now });
           if (marked !== steps) {
             await saveSteps(marked);
             await changed();
@@ -209,7 +242,7 @@ registerHandler(
   ({ step: raw }, sender) =>
     locked(async () => {
       const state = await load();
-      if (!fromRecordedTab(state, sender)) return { accepted: false };
+      if (!recordedTab(state, sender)) return { accepted: false };
       const clean = sanitizeStep(raw);
       if (!clean) return { accepted: false };
       await saveSteps(appendStep(state.steps, { ...clean, t: Date.now() }));

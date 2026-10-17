@@ -8,10 +8,12 @@
 // The value of a password or payment field is never read: `isSensitiveField`
 // decides before `.value` is touched.
 
-import { ext } from "../shared/api.js";
-import { MSG, message } from "../shared/protocol.js";
-import { INTERACTIVE_SELECTOR, generateSelectors } from "../shared/selectors.js";
-import { isSensitiveField } from "../shared/steps.js";
+import { ext } from "../shared/api.ts";
+import { isElement } from "../shared/dom.ts";
+import { isRecord } from "../shared/guards.ts";
+import { MSG, type Message, isMessage, message } from "../shared/protocol.ts";
+import { INTERACTIVE_SELECTOR, generateSelectors } from "../shared/selectors.ts";
+import { type Step, type Target, isSensitiveField } from "../shared/steps.ts";
 
 const TYPING_PAUSE_MS = 500;
 const SCROLL_PAUSE_MS = 250;
@@ -22,27 +24,37 @@ const NON_TEXT_VALUE_TYPES = new Set(["range", "color", "date", "time", "datetim
 const NAVIGATION_KEYS = new Set(["Tab", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown"]);
 const CLICKABLE = INTERACTIVE_SELECTOR;
 
-function create() {
+/** The fields of a step the content script decides; the background adds the time and the id. */
+type RawStep = Omit<Step, "id" | "t" | "url">;
+
+/** Whether `el` is a contenteditable element (or inside one). */
+function isEditable(el: Element): boolean {
+  return "isContentEditable" in el && el.isContentEditable === true;
+}
+
+function create(): NonNullable<Window["__sbrsRecorder"]> {
   let enabled = false;
   let settings = { recordScroll: false };
-  let pending = null; // { el, timer }
+  let pending: { el: Element; timer: ReturnType<typeof setTimeout> } | null = null;
   let lastScrollY = window.scrollY;
   let lastScrollX = window.scrollX;
-  let scrollTimer = 0;
+  let scrollTimer: ReturnType<typeof setTimeout> | undefined;
   let installed = false;
   let implicitSubmitUntil = 0; // Enter in a field was pressed: a submit-button click that follows is its effect
 
-  const send = (type, payload) => {
+  const send = (type: string, payload: Record<string, unknown>): Promise<unknown> => {
     try {
-      return ext.runtime.sendMessage(message(type, payload)).catch(() => null);
+      return ext.runtime.sendMessage<Message, unknown>(message(type, payload)).catch(() => null);
     } catch {
       return Promise.resolve(null); // the extension was reloaded under this page
     }
   };
 
-  function navigationType() {
+  function navigationType(): string {
     try {
-      return performance.getEntriesByType("navigation")[0]?.type ?? "navigate";
+      // Entries of type "navigation" are PerformanceNavigationTiming.
+      const [entry] = performance.getEntriesByType("navigation") as PerformanceNavigationTiming[];
+      return entry?.type ?? "navigate";
     } catch {
       return "navigate";
     }
@@ -50,30 +62,38 @@ function create() {
 
   // ---- targets
 
-  function retarget(node) {
-    let el = node && node.nodeType === 1 ? node : (node?.parentElement ?? null);
+  /** The element an event node stands for: its parent if it is text, and the host of any shadow root around it. */
+  function retarget(node: unknown): Element | null {
+    const start = isElement(node) ? node : parentOf(node);
+    let el: Element | null = isElement(start) ? start : null;
     while (el) {
       const root = el.getRootNode();
-      if (root && root.host && root !== document) el = root.host;
+      const host: unknown = "host" in root ? root.host : undefined;
+      if (root !== document && isElement(host)) el = host;
       else break;
     }
     return el;
   }
 
-  function eventElement(event) {
+  /** The `parentElement` of something that may be a node. */
+  function parentOf(node: unknown): unknown {
+    return typeof node === "object" && node !== null && "parentElement" in node ? node.parentElement : null;
+  }
+
+  function eventElement(event: Event): Element | null {
     const path = typeof event.composedPath === "function" ? event.composedPath() : [];
     return retarget(path[0] ?? event.target);
   }
 
-  function isTextEntry(el) {
+  function isTextEntry(el: Element | null): boolean {
     if (!el) return false;
     const tag = el.localName;
     if (tag === "textarea") return true;
     if (tag === "input") return TEXT_INPUT_TYPES.has((el.getAttribute("type") || "").toLowerCase());
-    return Boolean(el.isContentEditable);
+    return isEditable(el);
   }
 
-  function describe(el) {
+  function describe(el: Element): Target {
     const generated = generateSelectors(el);
     const field = ["input", "select", "textarea"].includes(el.localName);
     return {
@@ -85,7 +105,7 @@ function create() {
     };
   }
 
-  function sensitivity(el) {
+  function sensitivity(el: Element) {
     return isSensitiveField({
       type: el.getAttribute("type") ?? "",
       autocomplete: el.getAttribute("autocomplete") ?? "",
@@ -96,13 +116,13 @@ function create() {
     });
   }
 
-  function emit(raw) {
+  function emit(raw: RawStep): void {
     void send(MSG.RECORDER_STEP, { step: { ...raw, url: location.href } });
   }
 
   // ---- typing
 
-  function flushTyping() {
+  function flushTyping(): void {
     if (!pending) return;
     const { el, timer } = pending;
     pending = null;
@@ -113,11 +133,16 @@ function create() {
     if (secret.sensitive) {
       emit({ type: "change", target, value: "", sensitive: true, secret: secret.label });
     } else {
-      emit({ type: "change", target, value: String(el.value ?? el.textContent ?? "") });
+      emit({ type: "change", target, value: textOf(el) });
     }
   }
 
-  function noteTyping(el) {
+  /** What is typed in `el`, an input or a textarea. */
+  function textOf(el: Element): string {
+    return "value" in el && typeof el.value === "string" ? el.value : (el.textContent ?? "");
+  }
+
+  function noteTyping(el: Element): void {
     if (pending && pending.el !== el) flushTyping();
     if (pending) clearTimeout(pending.timer);
     pending = { el, timer: setTimeout(flushTyping, TYPING_PAUSE_MS) };
@@ -125,27 +150,33 @@ function create() {
 
   // ---- event handlers
 
-  function onClick(event) {
+  /** Whether `el` is a control that belongs to a form. */
+  function inForm(el: Element): boolean {
+    return "form" in el && Boolean(el.form);
+  }
+
+  function onClick(event: MouseEvent): void {
     if (!enabled || !event.isTrusted || event.button !== 0) return;
     // Enter in a text field submits its form by "clicking" the submit button. The
     // Enter key press is the step; the click it causes is not another one.
     if (event.detail === 0 && Date.now() < implicitSubmitUntil) {
       const control = eventElement(event);
       const type = control ? (control.getAttribute("type") || "").toLowerCase() : "";
-      if (control && control.form && ((control.localName === "button" && (type === "" || type === "submit")) || (control.localName === "input" && (type === "submit" || type === "image")))) {
+      if (control && inForm(control) && ((control.localName === "button" && (type === "" || type === "submit")) || (control.localName === "input" && (type === "submit" || type === "image")))) {
         return;
       }
     }
     flushTyping();
     const raw = eventElement(event);
     if (!raw) return;
-    const el = raw.closest ? (retarget(raw.closest(CLICKABLE)) ?? raw) : raw;
+    const el = retarget(raw.closest(CLICKABLE)) ?? raw;
     const tag = el.localName;
     const type = (el.getAttribute("type") || "").toLowerCase();
-    if (isTextEntry(el) && !el.isContentEditable) return; // focusing a field; the typing is the step
+    if (isTextEntry(el) && !isEditable(el)) return; // focusing a field; the typing is the step
     if (tag === "select" || tag === "option") return;
     if (tag === "input" && (type === "checkbox" || type === "radio" || type === "file")) return;
-    if (tag === "label" && el.control && ["checkbox", "radio", "file"].includes((el.control.getAttribute("type") || "").toLowerCase())) return;
+    const labelled = "control" in el && isElement(el.control) ? el.control : null;
+    if (tag === "label" && labelled && ["checkbox", "radio", "file"].includes((labelled.getAttribute("type") || "").toLowerCase())) return;
     const rect = el.getBoundingClientRect();
     emit({
       type: "click",
@@ -155,11 +186,11 @@ function create() {
     });
   }
 
-  function onDoubleClick(event) {
+  function onDoubleClick(event: MouseEvent): void {
     if (!enabled || !event.isTrusted) return;
     const raw = eventElement(event);
     if (!raw) return;
-    const el = raw.closest ? (retarget(raw.closest(CLICKABLE)) ?? raw) : raw;
+    const el = retarget(raw.closest(CLICKABLE)) ?? raw;
     if (isTextEntry(el)) return; // a double click in a field selects a word
     const rect = el.getBoundingClientRect();
     emit({
@@ -170,20 +201,20 @@ function create() {
     });
   }
 
-  function onContextMenu(event) {
+  function onContextMenu(event: MouseEvent): void {
     if (!enabled || !event.isTrusted) return;
     flushTyping();
     const el = eventElement(event);
     if (el) emit({ type: "rightClick", target: describe(el) });
   }
 
-  function onInput(event) {
+  function onInput(event: Event): void {
     if (!enabled || !event.isTrusted) return;
     const el = eventElement(event);
-    if (el && isTextEntry(el) && !el.isContentEditable) noteTyping(el);
+    if (el && isTextEntry(el) && !isEditable(el)) noteTyping(el);
   }
 
-  function onChange(event) {
+  function onChange(event: Event): void {
     if (!enabled || !event.isTrusted) return;
     const el = eventElement(event);
     if (!el) return;
@@ -191,29 +222,30 @@ function create() {
     const type = (el.getAttribute("type") || "").toLowerCase();
     if (tag === "select") {
       flushTyping();
-      const option = el.selectedOptions && el.selectedOptions[0];
+      const select = el as HTMLSelectElement; // its tag says so
+      const option = select.selectedOptions[0];
       emit({
         type: "select",
         target: describe(el),
-        value: String(el.value ?? ""),
-        text: option ? String(option.textContent ?? "").trim() : "",
-        index: el.selectedIndex,
+        value: select.value,
+        text: option ? (option.textContent ?? "").trim() : "",
+        index: select.selectedIndex,
       });
     } else if (tag === "input" && (type === "checkbox" || type === "radio")) {
       flushTyping();
-      emit({ type: el.checked ? "check" : "uncheck", target: describe(el) });
+      emit({ type: (el as HTMLInputElement).checked ? "check" : "uncheck", target: describe(el) });
     } else if (tag === "input" && type === "file") {
       flushTyping();
-      emit({ type: "setFiles", target: describe(el), names: Array.from(el.files ?? []).map((f) => f.name) });
+      emit({ type: "setFiles", target: describe(el), names: Array.from((el as HTMLInputElement).files ?? []).map((f) => f.name) });
     } else if (tag === "input" && NON_TEXT_VALUE_TYPES.has(type)) {
       flushTyping();
-      emit({ type: "setValue", target: describe(el), value: String(el.value ?? "") });
+      emit({ type: "setValue", target: describe(el), value: (el as HTMLInputElement).value });
     } else if (isTextEntry(el)) {
       flushTyping();
     }
   }
 
-  function onKeyDown(event) {
+  function onKeyDown(event: KeyboardEvent): void {
     if (!enabled || !event.isTrusted || event.ctrlKey || event.metaKey || event.altKey) return;
     const key = event.key;
     const el = eventElement(event);
@@ -237,7 +269,7 @@ function create() {
     emit({ type: "keyPress", key, ...(body ? { target: body } : {}) });
   }
 
-  function onScroll() {
+  function onScroll(): void {
     if (!enabled || !settings.recordScroll) return;
     clearTimeout(scrollTimer);
     scrollTimer = setTimeout(() => {
@@ -250,11 +282,11 @@ function create() {
     }, SCROLL_PAUSE_MS);
   }
 
-  function onPageHide() {
+  function onPageHide(): void {
     if (enabled) flushTyping();
   }
 
-  function install() {
+  function install(): void {
     if (installed) return;
     installed = true;
     const capture = { capture: true, passive: true };
@@ -266,21 +298,23 @@ function create() {
     document.addEventListener("keydown", onKeyDown, capture);
     window.addEventListener("scroll", onScroll, capture);
     window.addEventListener("pagehide", onPageHide, capture);
-    ext.runtime.onMessage.addListener((incoming) => {
-      if (incoming && incoming.v === 1 && incoming.type === MSG.RECORDER_DETACH) detach();
+    ext.runtime.onMessage.addListener((incoming: unknown) => {
+      if (isMessage(incoming) && incoming.type === MSG.RECORDER_DETACH) detach();
       return false;
     });
   }
 
-  async function attach() {
+  async function attach(): Promise<void> {
     const reply = await send(MSG.RECORDER_HELLO, {
       url: location.href,
       title: document.title,
       nav: navigationType(),
       doc: performance.timeOrigin, // one value per loaded document
     });
-    if (reply && reply.ok && reply.active) {
-      settings = { ...settings, ...(reply.settings ?? {}) };
+    if (isRecord(reply) && reply.ok === true && reply.active === true) {
+      if (isRecord(reply.settings) && typeof reply.settings.recordScroll === "boolean") {
+        settings = { recordScroll: reply.settings.recordScroll };
+      }
       enabled = true;
       install();
     } else {
@@ -288,7 +322,7 @@ function create() {
     }
   }
 
-  function detach() {
+  function detach(): void {
     flushTyping();
     enabled = false;
   }

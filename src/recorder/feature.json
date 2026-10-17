@@ -1,4 +1,4 @@
 {
-  "background": "background.js",
-  "scripts": ["content.js"]
+  "background": "background.ts",
+  "scripts": ["content.ts"]
 }
