@@ -9,6 +9,10 @@ describe("unexplainedAny", () => {
     "type T = Record<string, any>;",
     "const z: string | any[] = [];",
     "const f = (): any => 1;",
+    "type T = any;",
+    "type T<U = any> = U;",
+    "type Pair = [any, string];",
+    "type K = keyof any;",
   ])("finds %s", (line) => {
     expect(unexplainedAny(line)).toEqual([1]);
   });

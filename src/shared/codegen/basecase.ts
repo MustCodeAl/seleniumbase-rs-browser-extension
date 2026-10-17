@@ -70,7 +70,14 @@ export function basecaseStatements(s: Step): { lines: string[] } {
       if (needTarget()) lines.push(`sb.uncheck_if_checked(${sel}).await?;`);
       break;
     case "keyPress": {
-      const key = typeof s.key === "string" ? (SELENIUM_KEYS[s.key] ?? (Array.from(s.key).length === 1 ? s.key : null)) : null;
+      const key =
+        typeof s.key !== "string"
+          ? null
+          : Object.hasOwn(SELENIUM_KEYS, s.key)
+            ? (SELENIUM_KEYS[s.key] ?? null)
+            : Array.from(s.key).length === 1
+              ? s.key
+              : null;
       if (key === null) lines.push(skipped(`key ${rustStr(String(s.key ?? ""))} cannot be sent`));
       else lines.push(`sb.send_keys(${sel ?? '"body"'}, ${rustStr(key)}).await?;`);
       break;

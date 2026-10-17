@@ -142,6 +142,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 });
 
 describe("BaseCase test", () => {
+  test("a key named like an object member is not looked up on the prototype", () => {
+    for (const key of ["constructor", "toString", "__proto__", "hasOwnProperty"]) {
+      expect(basecaseStatements(step("keyPress", { key })).lines[0]).toStartWith("// skipped:");
+    }
+  });
+
   test("exact output", () => {
     expect(basecaseProgram(flow, { entry: "test", name: "recorded_test" })).toBe(`use seleniumbase_rs::{BaseCase, BrowserConfig};
 

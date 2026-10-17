@@ -8,8 +8,8 @@ function codeOf(line: string): string {
     .replace(/\/\/.*$/, "");
 }
 
-/** `any` written as a type: after `:`, `|`, `&`, `<`, `,`, `(`, `=>`, `as` or `extends`. */
-const ANY_AS_A_TYPE = /(?:[:|&<,(]|=>|\bas|\bextends)\s*any\b/;
+/** `any` written as a type: after `:`, `|`, `&`, `<`, `,`, `(`, `=`, `[`, `=>`, `as`, `extends` or `keyof`. */
+const ANY_AS_A_TYPE = /(?:[:|&<,(=\[]|\bas|\bextends|\bkeyof)\s*any\b/;
 
 /** A justification: `// any: <why>` on the line, or alone on the line before it. */
 const ANY_REASON = /\/\/\s*any:\s*\S/;

@@ -25,7 +25,8 @@ actions both know.
 
 ## Install from source
 
-You need [Bun](https://bun.sh) (`mise install` sets everything up).
+You need [Bun](https://bun.sh) (`mise install` sets everything up). The `package.json` scripts run through
+`$npm_execpath`, so start them with `bun run`; `npm run` and `pnpm run` do not work.
 
 ```sh
 bun install

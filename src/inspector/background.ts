@@ -14,6 +14,17 @@ import { probePage } from "./probe.ts";
 const K_LAST = "inspector.last";
 const MAX_RESULT_BYTES = 200_000;
 
+/** The fields `renderPick` reads: a stored pick that lacks them would throw in the panel. */
+function isPickResult(value: unknown): value is PickResult {
+  return (
+    isRecord(value) &&
+    typeof value.url === "string" &&
+    typeof value.tag === "string" &&
+    Array.isArray(value.candidates) &&
+    Array.isArray(value.calls)
+  );
+}
+
 registerHandler(MSG.INSPECTOR_PICK, async ({ tabId }) => {
   if (typeof tabId !== "number") throw new Error("inspector/pick needs a tabId");
   const tab = await ext.tabs.get(tabId);
@@ -26,7 +37,7 @@ registerHandler(MSG.INSPECTOR_LAST, async () => ({ last: await get<PickResult | 
 registerHandler(
   MSG.INSPECTOR_PICKED,
   async ({ result }) => {
-    if (!isRecord(result) || JSON.stringify(result).length > MAX_RESULT_BYTES) {
+    if (!isPickResult(result) || JSON.stringify(result).length > MAX_RESULT_BYTES) {
       return { stored: false };
     }
     await set(session, K_LAST, result);
