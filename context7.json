@@ -25,14 +25,14 @@
     "GEMINI.md"
   ],
   "rules": [
-    "This repository is a Manifest V3 browser extension (formerly seleniumbase-rs-companion), not a Rust crate or npm package. Build it from source with Bun: bun install, then bun run build.",
+    "This repository is a Manifest V3 browser extension (formerly seleniumbase-rs-companion), not a Rust crate or npm package. Build it from source with Bun: bun install, then bun run build. The source is strict TypeScript (src/, scripts/, tests/); bun run typecheck and bun run lint check it.",
     "bun run build writes dist/chrome (Chrome, Edge) and dist/firefox, each with a zip. Load dist/chrome unpacked at chrome://extensions, or dist/firefox/manifest.json as a temporary add-on at about:debugging. Needs Chrome 116 or Firefox 140.",
     "Features: the Recorder turns clicks, typing, selects, checkboxes and key presses into editable steps; the Inspector picks an element and lists its selectors with match counts; a DevTools Recorder export plugin (Chrome, Edge) adds two Export entries.",
     "A recording exports as a pure CDP Rust test (seleniumbase_rs::sb_cdp Browser, Page, Locator), a BaseCase test (seleniumbase_rs::BaseCase), or Chrome DevTools Recorder JSON that sbrs import-puppeteer reads.",
-    "Generated tests need seleniumbase-rs, which is not on crates.io: seleniumbase-rs = { git = \"https://github.com/MustCodeAl/seleniumbase-rs\", tag = \"v0.3.0\" }. The e2e crate compiles every export against tag v0.1.1.",
+    "Generated tests need seleniumbase-rs, which is not on crates.io: seleniumbase-rs = { git = \"https://github.com/MustCodeAl/seleniumbase-rs\", tag = \"v0.5.0\" }. The e2e crate compiles every export against tag v0.5.0.",
     "A password field, or one whose autocomplete, name, id, placeholder or aria-label marks a card number, CVC, SSN, IBAN, one-time code or secret, is never read. Generated code reads RECORDED_<LABEL> (for example RECORDED_PASSWORD) from the environment.",
-    "Each src/<name>/ folder with a feature.json is a feature, and \"enabled\": false skips it. Fields: background, scripts, panelViews, manifest, chrome, firefox. src/bridge and src/converter are disabled placeholders with no code.",
-    "Messages are { v: 1, type: \"<feature>/<name>\", ...payload }, answered with { ok: true, ...data } or { ok: false, error }. Register a handler with registerHandler(type, handler, from) in src/background/router.js; from is \"ui\" (default), \"content\" or \"any\".",
+    "Each src/<name>/ folder with a feature.json is a feature, and \"enabled\": false skips it. Fields: background, scripts, panelEntry, panelViews, manifest, chrome, firefox; they name .ts sources, and the build writes .js files. src/bridge and src/converter are disabled placeholders with no code.",
+    "Messages are { v: 1, type: \"<feature>/<name>\", ...payload }, answered with { ok: true, ...data } or { ok: false, error }. Register a handler with registerHandler(type, handler, from) in src/background/router.ts; from is \"ui\" (default), \"content\" or \"any\".",
     "The manifest has no static host_permissions and no content_scripts: it uses activeTab and scripting, and asks for optional <all_urls> access at Start recording. Add a new permission on purpose to the allow list in scripts/lint.ts.",
     "Limits: steps in iframes and shadow roots are not recorded, only the tab recording started in is followed, file inputs keep the file name and not the path, and Safari is not built."
   ]

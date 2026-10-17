@@ -4,6 +4,14 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Changed
+
+- The source is strict TypeScript (`src/`, `scripts/`, `tests/`), bundled by Bun into the same `dist/` layout.
+  `bun run typecheck` and `bun run lint` check it; `any` needs a `// any: <why>` comment.
+- The exports are written for seleniumbase-rs 0.5.0: a pure CDP test types into a field with `type_text` alone (it
+  empties the field first, so the `clear()` before it is gone), the assert text call takes the text first, and the
+  e2e crate compiles the exports against 0.5.0.
+
 ### Added
 
 - One Manifest V3 source tree built by `scripts/build.ts` into `dist/chrome` (Chrome, Edge) and `dist/firefox`,

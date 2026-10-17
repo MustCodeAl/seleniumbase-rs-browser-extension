@@ -2,7 +2,7 @@
 
 Browser extensions for [seleniumbase-rs](https://github.com/MustCodeAl/seleniumbase-rs), the Rust port of
 SeleniumBase. One source tree builds Manifest V3 extensions for Chrome (also Edge and other Chromium
-browsers) and Firefox.
+browsers) and Firefox. The source is strict TypeScript, bundled with Bun.
 
 The full guide is part of the seleniumbase-rs documentation site:
 [Browser extension](https://mustcodeal-seleniumbase-rs.docs7.io/ecosystem/browser-extension).
@@ -17,6 +17,12 @@ Nothing is sent anywhere. Recordings are kept in the extension's own storage and
 Download or Copy. The value of a password or payment field is never read, so it cannot be recorded; the
 generated code reads it from an environment variable instead (`RECORDED_PASSWORD`, ...).
 
+The Rust it writes is for seleniumbase-rs 0.5.0. `Locator::type_text` empties a field before it types, so a
+recorded field is typed with that call alone; the text assertions take the text first; and the Page tab's JSON is
+the `Fingerprint` that 0.5.0 reads (one object for the screen, the WebGL strings and the device counts). `e2e/`
+compiles every export against tag `v0.5.0`, and `tests/golden/` holds what its `ActionRecorder` writes for the
+actions both know.
+
 ## Install from source
 
 You need [Bun](https://bun.sh) (`mise install` sets everything up).
@@ -24,6 +30,7 @@ You need [Bun](https://bun.sh) (`mise install` sets everything up).
 ```sh
 bun install
 bun run build          # dist/chrome, dist/firefox, and a zip of each
+bun run build:e2e      # the same, plus dist/chrome-e2e and dist/firefox-e2e for the end-to-end tests
 ```
 
 * **Chrome / Edge**: open `chrome://extensions` (or `edge://extensions`), turn on Developer mode, **Load
@@ -38,40 +45,54 @@ page; say no and it still records the page you started on.
 ## Develop
 
 ```sh
-mise run build       # or: bun run scripts/build.ts
-mise run test        # bun test: selectors, code generators, steps, manifests, build output
-mise run lint        # manifest rules, then web-ext lint on both dists
+bun run typecheck    # tsc over src/ (the extension) and over scripts/ and tests/ (the Bun side)
+bun run lint         # typecheck, the source rules, the manifest rules, then web-ext lint on dist/firefox
+bun test             # selectors, code generators, steps, manifests, build output
 mise run e2e         # a real Chrome driven from Rust (see e2e/README.md)
 ```
+
+`mise run build`, `test`, `typecheck` and `lint` run the same commands.
+
+Every file under `src/`, `scripts/` and `tests/` is TypeScript with `strict`, `noUncheckedIndexedAccess` and
+`exactOptionalPropertyTypes` (`tsconfig.json`; `src/tsconfig.json` checks the extension without Bun's globals).
+`tsc` only checks: Bun runs and bundles the TypeScript itself, and the build writes plain `.js` files into
+`dist/<browser>/`, where the manifests and the html pages name them. Imports name the `.ts` file
+(`import { rustStr } from "./rust.ts"`), and so does a `feature.json` (`"background": "background.ts"`). The
+WebExtension types are `@types/chrome` (the code is written against `ext` in `src/shared/api.ts`, typed as
+Chrome's namespace, which Firefox's `browser` matches for the calls made here); there are no runtime
+dependencies. `any` needs a `// any: <why>` comment, and `bun run lint` fails without one.
 
 ## Layout and extension points
 
 ```
 src/
   manifest/base.json     manifest keys for every browser; base.json's "chrome" and "firefox" keys are per browser
-  shared/                no browser APIs except api.js: selector generation, code generation, the step model
-    selectors.js           generateSelectors(): candidates in order of preference, each with its match count
-    steps.js               the step model, merging typing, masking secrets, sanitising incoming steps
-    codegen/               cdp.js, basecase.js, replay.js (DevTools Recorder JSON, both ways), index.js
-    rust.js                rustStr() and friends: everything recorded goes into Rust through these
-    calls.js, fingerprint.js, protocol.js, api.js, dom.js, clipboard.js, pickview.js
-  background/            the router: registerHandler(type, handler, from); store.js helpers
+  shared/                no browser APIs except api.ts: selector generation, code generation, the step model
+    selectors.ts           generateSelectors(): candidates in order of preference, each with its match count
+    steps.ts               the step model, merging typing, masking secrets, sanitising incoming steps
+    codegen/               cdp.ts, basecase.ts, replay.ts (DevTools Recorder JSON, both ways), index.ts
+    rust.ts                rustStr() and friends: everything recorded goes into Rust through these
+    calls.ts, fingerprint.ts, protocol.ts, api.ts, dom.ts, clipboard.ts, pickview.ts, guards.ts
+  background/            the router: registerHandler(type, handler, from); store.ts helpers
   recorder/  inspector/  devtools-recorder/    one folder per feature (see below)
   ui/                    the panel (popup, side panel, sidebar) and its views
   bridge/  converter/    placeholders: disabled features waiting for their code
 scripts/build.ts         src/ to dist/<browser>/ and zips
+scripts/lint.ts          the source rules (scripts/rules.ts), the manifest rules, web-ext lint
 tests/                   bun test
+src/env.d.ts             the globals the build defines (__BROWSER__) and the content scripts leave on window
 e2e/                     a Rust crate that loads dist/chrome-e2e into Chrome
 ```
 
 **A feature is a folder with a `feature.json`.** The build finds `src/*/feature.json` (a folder with
 `"enabled": false` is skipped) and, for each browser it lists (`"browsers"`, both by default):
 
-* bundles `background` (a module) into the one background bundle, after `src/background/index.js`;
-* bundles each file of `scripts` on its own, as a classic script, to `dist/<browser>/<feature>/<file>`
+* bundles `background` (a module) into the one background bundle, after `src/background/index.ts`;
+* bundles each file of `scripts` on its own, as a classic script, to `dist/<browser>/<feature>/<file>.js`
   (content scripts, page scripts, a DevTools page script);
-* bundles `panelViews` (a module that calls `registerView` from `src/ui/registry.js`) into the panel;
-* copies every other file (html, css, images) as it is, except `feature.json`, `*.md`, files starting with `_`;
+* bundles `panelViews` (a module that calls `registerView` from `src/ui/registry.ts`) into the panel;
+* copies every other file (html, css, images) as it is, except `feature.json`, `*.md`, files starting with `_`
+  and source files (`.ts` and `.js` are bundled, never copied);
 * merges `manifest` (and `chrome` / `firefox`) into that browser's manifest. Arrays are joined without
   repeats, objects are merged, and two different values for one key stop the build, so features cannot
   silently override one another.
@@ -83,18 +104,21 @@ open it with `ext.runtime.getURL("<feature>/page.html")`; to make it reachable f
 list in `scripts/lint.ts` on purpose. Static `host_permissions` and `content_scripts` are not used: the extension
 injects its scripts into the tab you point it at (`activeTab`), or into any tab once you allow all sites.
 
-**Messages** (`src/shared/protocol.js`): `{ v: 1, type: "<feature>/<name>", ...payload }`, answered with
+**Messages** (`src/shared/protocol.ts`): `{ v: 1, type: "<feature>/<name>", ...payload }`, answered with
 `{ ok: true, ...data }` or `{ ok: false, error }`. The panel talks to the background with
 `ext.runtime.sendMessage`; a content script does the same; the background talks to a content script with
 `ext.tabs.sendMessage`. A feature adds a type from its background module:
 
-```js
-import { registerHandler, broadcast } from "../background/router.js";
+```ts
+import { registerHandler, broadcast } from "../background/router.ts";
 registerHandler("bridge/connect", async (message, sender) => ({ connected: true }), "ui"); // "ui" | "content" | "any"
 ```
 
-The router refuses a message from the wrong kind of sender. After a change, `broadcast(MSG.STATE_CHANGED, { area })`
-makes the panel's `ctx.onChange(area, fn)` run. Anything a feature keeps goes through `src/background/store.js`
+A handler gets the message with every field `unknown` (a message is data from another context, so the handler
+checks the fields it reads), and the panel's `ctx.call(type, payload)` is typed by the reply table `Replies` in
+`protocol.ts`. The router refuses a message from the wrong kind of sender. After a change,
+`broadcast(MSG.STATE_CHANGED, { area })` makes the panel's `ctx.onChange(area, fn)` run. Anything a feature keeps
+goes through `src/background/store.ts`
 (`local` survives a restart, `session` does not), and the background must not hold state in memory: the browser
 stops and starts it.
 
