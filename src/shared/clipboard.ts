@@ -2,9 +2,9 @@
 // context and a focused document; a page served over plain HTTP gets the older
 // `execCommand("copy")` route.
 
-export async function copyText(text) {
+export async function copyText(text: string): Promise<boolean> {
   try {
-    if (globalThis.navigator?.clipboard?.writeText) {
+    if (typeof globalThis.navigator?.clipboard?.writeText === "function") {
       await navigator.clipboard.writeText(text);
       return true;
     }

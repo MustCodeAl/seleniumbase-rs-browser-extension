@@ -12,19 +12,19 @@
 // other than U+0020, and combining marks (Rust's debug output escapes those).
 const NEEDS_ESCAPE = /[\p{Cc}\p{Cf}\p{Cs}\p{Co}\p{Cn}\p{Zl}\p{Zp}\p{Zs}\p{Grapheme_Extend}]/u;
 
-function needsUnicodeEscape(ch) {
+function needsUnicodeEscape(ch: string): boolean {
   return ch !== " " && NEEDS_ESCAPE.test(ch);
 }
 
-function escapeChar(ch) {
-  const code = ch.codePointAt(0);
+function escapeChar(ch: string): string {
+  const code = ch.codePointAt(0) ?? 0;
   // Rust source cannot hold a surrogate, even as an escape.
   if (code >= 0xd800 && code <= 0xdfff) return "\\u{fffd}";
   return `\\u{${code.toString(16)}}`;
 }
 
 /** `text` as a Rust string literal. */
-export function rustStr(text) {
+export function rustStr(text: string): string {
   let out = '"';
   for (const ch of String(text)) {
     switch (ch) {
@@ -54,7 +54,7 @@ export function rustStr(text) {
 }
 
 /** `text` as the body of one `//` comment: one line, nothing that could end it. */
-export function commentText(text) {
+export function commentText(text: string): string {
   let out = "";
   for (const ch of String(text)) {
     if (ch === "\n" || ch === "\r" || ch === "\t") out += " ";
@@ -72,7 +72,7 @@ const KEYWORDS = new Set([
 ]);
 
 /** A name made safe as a Rust function name (`rust_identifier` in recorder.rs). */
-export function fnIdent(name) {
+export function fnIdent(name: string): string {
   let ident = "";
   for (const ch of String(name)) ident += /^[A-Za-z0-9_]$/.test(ch) ? ch : "_";
   if (ident === "" || ident === "_") return "recorded_test";
@@ -81,7 +81,7 @@ export function fnIdent(name) {
   return ident;
 }
 
-function snakeWords(text) {
+function snakeWords(text: string): string {
   let out = "";
   let previousLower = false;
   for (const ch of String(text)) {
@@ -98,7 +98,7 @@ function snakeWords(text) {
 }
 
 /** A title as a snake_case test name (`test_ident` in emit.rs). */
-export function testIdent(title, fallback) {
+export function testIdent(title: string, fallback: string): string {
   let name = snakeWords(title);
   if (name.length > 80) name = name.slice(0, 80).replace(/_+$/, "");
   if (name === "") return fallback;
@@ -108,7 +108,7 @@ export function testIdent(title, fallback) {
 }
 
 /** The environment variable that supplies a field whose value was not recorded. */
-export function envName(label) {
+export function envName(label: string): string {
   const words = snakeWords(label);
   return `RECORDED_${words === "" ? "SECRET" : words.toUpperCase()}`;
 }

@@ -2,19 +2,29 @@
 // inspector shows these next to each selector; they follow the conventions of
 // the code generators in codegen/.
 
-import { rustStr } from "./rust.js";
+import { rustStr } from "./rust.ts";
 
-const TEXT_INPUTS = new Set(["text", "search", "email", "tel", "url", "password", "number", "", undefined]);
+const TEXT_INPUTS = new Set<string | undefined>(["text", "search", "email", "tel", "url", "password", "number", "", undefined]);
 
-/**
- * @param {string} selector  a selector string seleniumbase-rs reads (CSS, XPath, link=)
- * @param {{tag?: string, inputType?: string, text?: string}} [info]
- * @returns {{label: string, cdp: string, basecase: string}[]}
- */
-export function callsFor(selector, info = {}) {
+/** One ready-to-copy call, written for both engines. */
+export interface Call {
+  label: string;
+  cdp: string;
+  basecase: string;
+}
+
+/** What is known of the element a call is for. */
+export interface CallInfo {
+  tag?: string | undefined;
+  inputType?: string | undefined;
+  text?: string | undefined;
+}
+
+/** The calls for `selector`, a selector string seleniumbase-rs reads (CSS, XPath, link=). */
+export function callsFor(selector: string, info: CallInfo = {}): Call[] {
   const sel = rustStr(selector);
   const loc = `page.locator(${sel})`;
-  const calls = [
+  const calls: Call[] = [
     { label: "click", cdp: `${loc}.click().await?;`, basecase: `sb.click(${sel}).await?;` },
   ];
   const tag = info.tag;

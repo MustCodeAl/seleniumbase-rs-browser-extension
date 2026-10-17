@@ -2,14 +2,14 @@
 // identifiers, CSS attribute values and XPath string literals.
 
 /** XPath's normalize-space: collapse runs of space, tab, CR and LF, and trim. */
-export function normalizeSpace(text) {
+export function normalizeSpace(text: string | null | undefined): string {
   return String(text ?? "")
     .replace(/[ \t\r\n]+/g, " ")
     .replace(/^ | $/g, "");
 }
 
 /** `CSS.escape`, for pages and test DOMs that lack it (CSSOM serialize an identifier). */
-export function cssEscape(value) {
+export function cssEscape(value: string): string {
   const text = String(value);
   const first = text.charCodeAt(0);
   let out = "";
@@ -43,7 +43,7 @@ export function cssEscape(value) {
 }
 
 /** A double-quoted CSS string, for `[attr="value"]`. */
-export function cssString(value) {
+export function cssString(value: string): string {
   const body = String(value)
     .replace(/[\\"]/g, "\\$&")
     .replace(/\n/g, "\\a ")
@@ -57,11 +57,11 @@ export function cssString(value) {
  * An XPath 1.0 string literal. XPath has no escapes, so a value holding both
  * quote kinds becomes a `concat()` of pieces.
  */
-export function xpathLiteral(value) {
+export function xpathLiteral(value: string): string {
   const text = String(value);
   if (!text.includes('"')) return `"${text}"`;
   if (!text.includes("'")) return `'${text}'`;
-  const pieces = [];
+  const pieces: string[] = [];
   let rest = text;
   while (rest.length > 0) {
     const at = rest.indexOf('"');

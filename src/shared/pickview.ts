@@ -2,10 +2,27 @@
 // for both engines. The picker overlay and the panel draw the same thing; each
 // supplies its own CSS for the classes used here (row, badge, label, sub).
 
-import { copyText } from "./clipboard.js";
-import { h } from "./dom.js";
+import type { Call } from "./calls.ts";
+import { copyText } from "./clipboard.ts";
+import { type Child, h } from "./dom.ts";
+import type { GeneratedCandidate } from "./selectors.ts";
 
-function copyButton(text, what) {
+/** What the picker found: the element, its selectors with match counts, and the calls for both engines. */
+export interface PickResult {
+  at?: number;
+  url: string;
+  title?: string;
+  tag: string;
+  role: string | null;
+  name: string;
+  text: string;
+  inputType?: string | undefined;
+  candidates: GeneratedCandidate[];
+  best: string | null;
+  calls: Call[];
+}
+
+function copyButton(text: string, what: string): HTMLButtonElement {
   const button = h("button", { type: "button", text: "Copy", title: `Copy ${what}` });
   button.addEventListener("click", async () => {
     const done = await copyText(text);
@@ -19,8 +36,8 @@ function copyButton(text, what) {
 
 export { copyButton };
 
-/** @param {object} result  a pick result (see inspector/content.js) */
-export function renderPick(result) {
+/** The picked element as DOM: see inspector/content.ts for where a pick comes from. */
+export function renderPick(result: PickResult): Child[] {
   const selectors = result.candidates.map((c) =>
     h(
       "div",
@@ -30,7 +47,7 @@ export function renderPick(result) {
       copyButton(c.value, "selector"),
     ),
   );
-  const engine = (key, title) =>
+  const engine = (key: "cdp" | "basecase", title: string) =>
     h(
       "div",
       {},

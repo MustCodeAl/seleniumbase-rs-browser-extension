@@ -29,25 +29,81 @@
 // A step may also carry `selector`, a string the person typed over the
 // generated one.
 
-import { selectorSyntax } from "./selectors.js";
+import { isRecord } from "./guards.ts";
+import { type Candidate, type SelectorSyntax, selectorSyntax } from "./selectors.ts";
 
 export { selectorSyntax };
+
+/** Every type of step, in the order the model above lists them. */
+const STEP_TYPE_LIST = [
+  "navigate", "click", "doubleClick", "rightClick", "hover", "change", "setValue", "select", "check",
+  "uncheck", "keyPress", "setFiles", "scroll", "scrollIntoView", "viewport", "waitFor", "unsupported",
+] as const;
+
+export type StepType = (typeof STEP_TYPE_LIST)[number];
+
+const STEP_TYPES: ReadonlySet<string> = new Set(STEP_TYPE_LIST);
+
+function isStepType(value: unknown): value is StepType {
+  return typeof value === "string" && STEP_TYPES.has(value);
+}
+
+/** The element a step is about: what it is, and the selectors that find it. */
+export interface Target {
+  tag?: string | undefined;
+  role?: string | undefined;
+  name?: string | undefined;
+  text?: string | undefined;
+  selectors: Candidate[];
+}
+
+/**
+ * One recorded step. `type` says which of the other fields it has (see the model
+ * at the top of this file); a step the background stores also has an `id`.
+ */
+export interface Step {
+  type: StepType;
+  id?: string | undefined;
+  t?: number | undefined;
+  target?: Target | undefined;
+  /** A selector the person typed over the generated ones. */
+  selector?: string | undefined;
+  url?: string | undefined;
+  value?: string | undefined;
+  text?: string | undefined;
+  key?: string | undefined;
+  description?: string | undefined;
+  /** What a sensitive field is ("password", "card_number"...), so the generated code can name its variable. */
+  secret?: string | undefined;
+  sensitive?: boolean | undefined;
+  names?: string[] | undefined;
+  x?: number | undefined;
+  y?: number | undefined;
+  offsetX?: number | undefined;
+  offsetY?: number | undefined;
+  index?: number | undefined;
+  width?: number | undefined;
+  height?: number | undefined;
+  visible?: boolean | undefined;
+  /** The step loaded a page as its effect. */
+  navigates?: boolean | undefined;
+}
 
 let counter = 0;
 
 /** A fresh step id. */
-export function newId() {
+export function newId(): string {
   counter += 1;
   return `s${Date.now().toString(36)}${counter.toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 
 /** A step of `type` with `fields`, stamped with the time. */
-export function step(type, fields = {}) {
+export function step(type: StepType, fields: Partial<Omit<Step, "type">> = {}): Step {
   return { type, t: Date.now(), ...fields };
 }
 
 /** A target that holds one hand-written selector. */
-export function targetOf(selector, extra = {}) {
+export function targetOf(selector: string, extra: Omit<Target, "selectors"> = {}): Target {
   return {
     ...extra,
     selectors: [{ kind: "custom", syntax: selectorSyntax(selector), value: selector, count: 1, unique: true }],
@@ -55,22 +111,22 @@ export function targetOf(selector, extra = {}) {
 }
 
 /** The selector a code generator should use for `s`, or null. */
-export function pickSelector(s) {
+export function pickSelector(s: Partial<Step>): string | null {
   if (typeof s.selector === "string" && s.selector.trim() !== "") return s.selector;
   const candidates = s.target?.selectors ?? [];
   const usable = candidates.find((c) => c.syntax !== "aria" && c.unique !== false);
   return usable ? usable.value : null;
 }
 
-function targetKey(s) {
+function targetKey(s: Step): string {
   return pickSelector(s) ?? "";
 }
 
 const FOLDS_TO_DOUBLE_CLICK = 2;
 
 /** `steps` with `incoming` added, merging typing, double clicks and scrolls. Returns a new array. */
-export function appendStep(steps, incoming) {
-  const added = incoming.id ? { ...incoming } : { ...incoming, id: newId() };
+export function appendStep(steps: Step[], incoming: Step): Step[] {
+  const added: Step = incoming.id ? { ...incoming } : { ...incoming, id: newId() };
   if (added.t === undefined) added.t = Date.now();
   const out = steps.slice();
   const last = out[out.length - 1];
@@ -91,7 +147,7 @@ export function appendStep(steps, incoming) {
     let removed = 0;
     while (removed < FOLDS_TO_DOUBLE_CLICK && out.length > 0) {
       const tail = out[out.length - 1];
-      if (tail.type === "click" && targetKey(tail) === key) {
+      if (tail && tail.type === "click" && targetKey(tail) === key) {
         out.pop();
         removed += 1;
       } else {
@@ -103,34 +159,37 @@ export function appendStep(steps, incoming) {
   return out;
 }
 
-const STEP_TYPES = new Set([
-  "navigate", "click", "doubleClick", "rightClick", "hover", "change", "setValue", "select", "check",
-  "uncheck", "keyPress", "setFiles", "scroll", "scrollIntoView", "viewport", "waitFor", "unsupported",
-]);
 const MAX_TEXT = 4000;
-const SYNTAXES = new Set(["css", "xpath", "link", "aria"]);
+const SYNTAXES: ReadonlySet<string> = new Set(["css", "xpath", "link", "aria"]);
 
-function str(value, max = MAX_TEXT) {
+function isSyntax(value: unknown): value is SelectorSyntax {
+  return typeof value === "string" && SYNTAXES.has(value);
+}
+
+function str(value: unknown, max = MAX_TEXT): string | undefined {
   return typeof value === "string" ? value.slice(0, max) : undefined;
 }
 
-function num(value) {
+function num(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
-function sanitizeTarget(raw) {
-  if (!raw || typeof raw !== "object") return undefined;
-  const selectors = (Array.isArray(raw.selectors) ? raw.selectors : [])
-    .filter((c) => c && typeof c.value === "string" && SYNTAXES.has(c.syntax))
-    .slice(0, 8)
-    .map((c) => ({
+function sanitizeTarget(raw: unknown): Target | undefined {
+  if (!isRecord(raw)) return undefined;
+  const list: unknown[] = Array.isArray(raw.selectors) ? raw.selectors : [];
+  const selectors: Candidate[] = [];
+  for (const c of list) {
+    if (selectors.length >= 8) break;
+    if (!isRecord(c) || typeof c.value !== "string" || !isSyntax(c.syntax)) continue;
+    selectors.push({
       kind: str(c.kind, 40) ?? "custom",
       syntax: c.syntax,
       value: c.value.slice(0, 2000),
       count: num(c.count) ?? 1,
       unique: c.unique !== false,
       ...(typeof c.aria === "string" ? { aria: c.aria.slice(0, 2000) } : {}),
-    }));
+    });
+  }
   return {
     tag: str(raw.tag, 40),
     role: str(raw.role, 40),
@@ -144,22 +203,28 @@ function sanitizeTarget(raw) {
  * A step as received from another context, reduced to the fields it may have
  * and bounded in size; null when it is not a step. A sensitive step has no value.
  */
-export function sanitizeStep(raw) {
-  if (!raw || typeof raw !== "object" || !STEP_TYPES.has(raw.type)) return null;
-  const out = { type: raw.type };
+export function sanitizeStep(raw: unknown): Step | null {
+  if (!isRecord(raw) || !isStepType(raw.type)) return null;
+  const out: Step = { type: raw.type };
   const target = sanitizeTarget(raw.target);
   if (target) out.target = target;
-  for (const field of ["url", "value", "text", "key", "selector", "description", "secret"]) {
+  for (const field of ["url", "value", "text", "key", "selector", "description", "secret"] as const) {
     const value = str(raw[field], field === "value" ? 10000 : MAX_TEXT);
     if (value !== undefined) out[field] = value;
   }
-  for (const field of ["x", "y", "offsetX", "offsetY", "index", "width", "height"]) {
+  for (const field of ["x", "y", "offsetX", "offsetY", "index", "width", "height"] as const) {
     const value = num(raw[field]);
     if (value !== undefined) out[field] = value;
   }
   if (typeof raw.visible === "boolean") out.visible = raw.visible;
   if (typeof raw.navigates === "boolean") out.navigates = raw.navigates;
-  if (Array.isArray(raw.names)) out.names = raw.names.slice(0, 20).filter((n) => typeof n === "string").map((n) => n.slice(0, 255));
+  if (Array.isArray(raw.names)) {
+    const names: unknown[] = raw.names;
+    out.names = names
+      .slice(0, 20)
+      .filter((n): n is string => typeof n === "string")
+      .map((n) => n.slice(0, 255));
+  }
   if (raw.sensitive === true) {
     out.sensitive = true;
     out.value = "";
@@ -167,15 +232,25 @@ export function sanitizeStep(raw) {
   return out;
 }
 
-const EDITABLE = ["selector", "value", "text", "url", "key", "x", "y", "offsetX", "offsetY"];
+const EDITABLE_TEXT = ["selector", "value", "text", "url", "key"] as const;
+const EDITABLE_NUMBERS = ["x", "y", "offsetX", "offsetY"] as const;
 
-/** `steps` with the step `id` patched. A sensitive step never gains a value. */
-export function editStep(steps, id, patch) {
+/**
+ * `steps` with the step `id` patched: the editable text fields that `patch` holds
+ * as text and the editable numbers that it holds as numbers; anything else in it
+ * is ignored. A sensitive step never gains a value.
+ */
+export function editStep(steps: Step[], id: string, patch: Record<string, unknown>): Step[] {
   return steps.map((s) => {
     if (s.id !== id) return s;
-    const next = { ...s };
-    for (const field of EDITABLE) {
-      if (field in patch) next[field] = patch[field];
+    const next: Step = { ...s };
+    for (const field of EDITABLE_TEXT) {
+      const value = patch[field];
+      if (typeof value === "string") next[field] = value;
+    }
+    for (const field of EDITABLE_NUMBERS) {
+      const value = patch[field];
+      if (typeof value === "number") next[field] = value;
     }
     if (next.sensitive) next.value = "";
     return next;
@@ -183,22 +258,23 @@ export function editStep(steps, id, patch) {
 }
 
 /** `steps` without the step `id`. */
-export function deleteStep(steps, id) {
+export function deleteStep(steps: Step[], id: string): Step[] {
   return steps.filter((s) => s.id !== id);
 }
 
 /** `steps` with the step `id` moved by `delta` places. */
-export function moveStep(steps, id, delta) {
+export function moveStep(steps: Step[], id: string, delta: number): Step[] {
   const from = steps.findIndex((s) => s.id === id);
   const to = from + delta;
   if (from < 0 || to < 0 || to >= steps.length) return steps;
   const out = steps.slice();
   const [moved] = out.splice(from, 1);
+  if (moved === undefined) return steps;
   out.splice(to, 0, moved);
   return out;
 }
 
-const CAUSES_NAVIGATION = new Set(["click", "doubleClick", "keyPress", "check", "uncheck", "select", "change", "setValue"]);
+const CAUSES_NAVIGATION: ReadonlySet<StepType> = new Set<StepType>(["click", "doubleClick", "keyPress", "check", "uncheck", "select", "change", "setValue"]);
 const CAUSE_WINDOW_MS = 3000;
 
 /**
@@ -206,12 +282,13 @@ const CAUSE_WINDOW_MS = 3000;
  * effect of the last recorded step (a click that followed a link, an Enter that
  * submitted a form), a redirect, or a reload.
  */
-export function shouldRecordNavigation(steps, { url, nav, now }) {
+export function shouldRecordNavigation(steps: Step[], { url, nav, now }: { url: string; nav?: string | undefined; now: number }): boolean {
   if (steps.length === 0) return true;
   if (nav === "reload") return false;
   const lastNavigate = [...steps].reverse().find((s) => s.type === "navigate");
   if (lastNavigate && lastNavigate.url === url) return false;
   const last = steps[steps.length - 1];
+  if (last === undefined) return true;
   const age = now - (last.t ?? 0);
   if (CAUSES_NAVIGATION.has(last.type) && age < CAUSE_WINDOW_MS) return false;
   if (last.type === "navigate" && age < CAUSE_WINDOW_MS) return false;
@@ -224,28 +301,28 @@ export function shouldRecordNavigation(steps, { url, nav, now }) {
  * The generators wait for the page after such a step, so the next step does not
  * start on the old one. Returns `steps` itself when nothing changes.
  */
-export function markNavigation(steps, { nav, now }) {
+export function markNavigation(steps: Step[], { nav, now }: { nav?: string | undefined; now: number }): Step[] {
   if (steps.length === 0 || nav === "reload") return steps;
   const last = steps[steps.length - 1];
-  if (!CAUSES_NAVIGATION.has(last.type) || last.navigates) return steps;
+  if (last === undefined || !CAUSES_NAVIGATION.has(last.type) || last.navigates) return steps;
   if (now - (last.t ?? 0) >= CAUSE_WINDOW_MS) return steps;
   return [...steps.slice(0, -1), { ...last, navigates: true }];
 }
 
-const AUTOCOMPLETE_LABELS = {
-  "cc-number": "card_number",
-  "cc-csc": "card_cvc",
-  "cc-exp": "card_expiry",
-  "cc-exp-month": "card_expiry",
-  "cc-exp-year": "card_expiry",
-  "cc-name": "card_name",
-  "cc-type": "card_type",
-  "one-time-code": "one_time_code",
-  "new-password": "password",
-  "current-password": "password",
-};
+const AUTOCOMPLETE_LABELS: ReadonlyMap<string, string> = new Map([
+  ["cc-number", "card_number"],
+  ["cc-csc", "card_cvc"],
+  ["cc-exp", "card_expiry"],
+  ["cc-exp-month", "card_expiry"],
+  ["cc-exp-year", "card_expiry"],
+  ["cc-name", "card_name"],
+  ["cc-type", "card_type"],
+  ["one-time-code", "one_time_code"],
+  ["new-password", "password"],
+  ["current-password", "password"],
+]);
 
-const NAME_PATTERNS = [
+const NAME_PATTERNS: readonly (readonly [RegExp, string])[] = [
   [/(card|cc)[-_ ]?(number|num|no)\b|ccnum/i, "card_number"],
   [/cvv/i, "cvv"],
   [/cvc|\bcsc\b|security[-_ ]?code/i, "card_cvc"],
@@ -256,16 +333,23 @@ const NAME_PATTERNS = [
   [/secret|api[-_ ]?key|token/i, "secret"],
 ];
 
-/**
- * Whether a field holds a secret whose value must never be recorded.
- * @param {{type?: string, autocomplete?: string, name?: string, id?: string, placeholder?: string, ariaLabel?: string}} info
- * @returns {{sensitive: boolean, label: string}}
- */
-export function isSensitiveField(info) {
+/** What is known of a form field, from its attributes. */
+export interface FieldInfo {
+  type?: string;
+  autocomplete?: string;
+  name?: string;
+  id?: string;
+  placeholder?: string;
+  ariaLabel?: string;
+}
+
+/** Whether a field holds a secret whose value must never be recorded. */
+export function isSensitiveField(info: FieldInfo): { sensitive: boolean; label: string } {
   const type = (info.type ?? "").toLowerCase();
   if (type === "password") return { sensitive: true, label: "password" };
   for (const token of (info.autocomplete ?? "").toLowerCase().split(/\s+/)) {
-    if (token in AUTOCOMPLETE_LABELS) return { sensitive: true, label: AUTOCOMPLETE_LABELS[token] };
+    const label = AUTOCOMPLETE_LABELS.get(token);
+    if (label !== undefined) return { sensitive: true, label };
   }
   const hint = [info.name, info.id, info.placeholder, info.ariaLabel].filter(Boolean).join(" ");
   for (const [pattern, label] of NAME_PATTERNS) {

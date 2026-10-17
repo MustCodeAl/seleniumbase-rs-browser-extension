@@ -17,7 +17,46 @@
 // Ids and classes that look generated (CSS-in-JS hashes, React ids, numbered
 // ids) are never used.
 
-import { cssEscape, cssString, normalizeSpace, xpathLiteral } from "./escape.js";
+import { cssEscape, cssString, normalizeSpace, xpathLiteral } from "./escape.ts";
+
+/** How a selector string is read. `aria` is only ever shown; no engine takes it. */
+export type SelectorSyntax = "css" | "xpath" | "link" | "aria";
+
+/** One way to find an element. `generateSelectors` always sets `count` and `unique`. */
+export interface Candidate {
+  kind: string;
+  syntax: SelectorSyntax;
+  value: string;
+  count?: number;
+  unique?: boolean;
+  aria?: string;
+}
+
+/** A candidate as `generateSelectors` returns it. */
+export interface GeneratedCandidate extends Candidate {
+  count: number;
+  unique: boolean;
+  role?: string;
+  name?: string;
+}
+
+/** The accessible name of an element, and where it came from. */
+export interface AccessibleName {
+  name: string;
+  source: string;
+}
+
+/** What `generateSelectors` knows of an element. */
+export interface GeneratedSelectors {
+  tag: string;
+  role: string | null;
+  name: string;
+  nameSource: string;
+  text: string;
+  inputType?: string | undefined;
+  candidates: GeneratedCandidate[];
+  best: GeneratedCandidate | null;
+}
 
 export const TESTID_ATTRIBUTES = [
   "data-testid",
@@ -49,7 +88,7 @@ const KIND_ORDER = [
 ];
 
 /** How a selector string is read by seleniumbase-rs: `css`, `xpath` or `link`. */
-export function selectorSyntax(text) {
+export function selectorSyntax(text: string): Exclude<SelectorSyntax, "aria"> {
   const s = String(text);
   if (/^(link|link_text|text|partial_link|partial_link_text|partial_text|p_link|p_link_text|p_text)=/.test(s)) {
     return "link";
@@ -58,9 +97,9 @@ export function selectorSyntax(text) {
   return "css";
 }
 
-function caseTransitions(segment) {
+function caseTransitions(segment: string): number {
   let count = 0;
-  let previous = null;
+  let previous: "l" | "u" | null = null;
   for (const ch of segment) {
     const kind = /[a-z]/.test(ch) ? "l" : /[A-Z]/.test(ch) ? "u" : null;
     if (kind === null) continue;
@@ -71,7 +110,7 @@ function caseTransitions(segment) {
 }
 
 /** Whether a class name or id looks machine-made, and so will not stay put. */
-export function looksGenerated(token) {
+export function looksGenerated(token: string): boolean {
   const text = String(token);
   if (text.length > 32) return true;
   if (text.includes(":")) return true;
@@ -86,7 +125,7 @@ export function looksGenerated(token) {
 
 const STATE_CLASS = /^(is|has)-|^(active|selected|open|opened|show|shown|hide|hidden|disabled|focus|focused|hover|hovered|loading|loaded|checked|current|collapsed|expanded|visible|invalid|valid|error|pressed|ng-.*)$/i;
 
-function stableClasses(el) {
+function stableClasses(el: Element): string[] {
   const raw = el.getAttribute ? el.getAttribute("class") : "";
   if (!raw) return [];
   return raw
@@ -94,17 +133,17 @@ function stableClasses(el) {
     .filter((c) => c && !looksGenerated(c) && !STATE_CLASS.test(c));
 }
 
-function stableId(el) {
+function stableId(el: Element): string | null {
   const id = el.getAttribute ? el.getAttribute("id") : null;
   if (!id || id.trim() === "" || looksGenerated(id)) return null;
   return id;
 }
 
-function idSelector(id) {
+function idSelector(id: string): string {
   return /^[A-Za-z_][\w-]*$/.test(id) ? `#${id}` : `[id=${cssString(id)}]`;
 }
 
-function testIdOf(el) {
+function testIdOf(el: Element): { attr: string; value: string } | null {
   for (const attr of TESTID_ATTRIBUTES) {
     const value = el.getAttribute(attr);
     if (value && value.trim() !== "") return { attr, value };
@@ -114,7 +153,7 @@ function testIdOf(el) {
 
 // ---------------------------------------------------------------- roles and names
 
-const INPUT_ROLES = {
+const INPUT_ROLES: Record<string, string> = {
   button: "button",
   submit: "button",
   reset: "button",
@@ -133,9 +172,10 @@ const INPUT_ROLES = {
 };
 
 /** The element's explicit or implicit ARIA role, or null. */
-export function roleOf(el) {
+export function roleOf(el: Element): string | null {
   const explicit = el.getAttribute("role");
-  if (explicit && explicit.trim() !== "") return explicit.trim().split(/\s+/)[0].toLowerCase();
+  const firstRole = explicit?.trim().split(/\s+/)[0];
+  if (firstRole) return firstRole.toLowerCase();
   const tag = el.localName;
   switch (tag) {
     case "a":
@@ -188,11 +228,11 @@ const NAME_FROM_CONTENT = new Set([
   "treeitem", "switch", "columnheader", "rowheader", "cell", "gridcell", "listitem",
 ]);
 
-function textOf(el) {
+function textOf(el: Element): string {
   return normalizeSpace(el.textContent ?? "");
 }
 
-function labelFor(el) {
+function labelFor(el: Element): string {
   const doc = el.ownerDocument;
   const id = el.getAttribute("id");
   if (id) {
@@ -212,7 +252,7 @@ function labelFor(el) {
 }
 
 /** The accessible name and where it came from (a simplified computation). */
-export function accessibleName(el) {
+export function accessibleName(el: Element): AccessibleName {
   const doc = el.ownerDocument;
   const labelledby = el.getAttribute("aria-labelledby");
   if (labelledby) {
@@ -266,7 +306,7 @@ export function accessibleName(el) {
 
 // ---------------------------------------------------------------- counting
 
-function countCss(doc, selector) {
+function countCss(doc: Document, selector: string): number {
   try {
     return doc.querySelectorAll(selector).length;
   } catch {
@@ -274,7 +314,7 @@ function countCss(doc, selector) {
   }
 }
 
-function uniqueCss(doc, selector, el) {
+function uniqueCss(doc: Document, selector: string, el: Element): boolean {
   try {
     const found = doc.querySelectorAll(selector);
     return found.length === 1 && found[0] === el;
@@ -283,7 +323,7 @@ function uniqueCss(doc, selector, el) {
   }
 }
 
-function countXPath(doc, xpath) {
+function countXPath(doc: Document, xpath: string): number | null {
   if (typeof doc.evaluate !== "function") return null;
   try {
     const result = doc.evaluate(xpath, doc, null, 7 /* ORDERED_NODE_SNAPSHOT_TYPE */, null);
@@ -293,7 +333,7 @@ function countXPath(doc, xpath) {
   }
 }
 
-function tagTest(el) {
+function tagTest(el: Element): string {
   const ns = el.namespaceURI;
   if (ns && ns !== "http://www.w3.org/1999/xhtml") return `*[local-name()=${xpathLiteral(el.localName)}]`;
   return el.localName;
@@ -303,8 +343,8 @@ function tagTest(el) {
 
 const LEAF_ATTRIBUTES = ["type", "placeholder", "title", "alt", "role", "for", "action", "href"];
 
-function attributeVariants(el) {
-  const out = [];
+function attributeVariants(el: Element): string[] {
+  const out: string[] = [];
   for (const attr of LEAF_ATTRIBUTES) {
     const value = el.getAttribute(attr);
     if (value === null || value === "" || value.length > 60) continue;
@@ -314,15 +354,15 @@ function attributeVariants(el) {
   return out;
 }
 
-function classSuffixes(el) {
-  const classes = stableClasses(el).slice(0, 3);
-  const out = [];
-  if (classes.length > 0) out.push(`.${cssEscape(classes[0])}`);
-  if (classes.length > 1) out.push(`.${cssEscape(classes[0])}.${cssEscape(classes[1])}`);
+function classSuffixes(el: Element): string[] {
+  const [first, second] = stableClasses(el);
+  const out: string[] = [];
+  if (first !== undefined) out.push(`.${cssEscape(first)}`);
+  if (first !== undefined && second !== undefined) out.push(`.${cssEscape(first)}.${cssEscape(second)}`);
   return out;
 }
 
-function nthOfType(el) {
+function nthOfType(el: Element): string {
   let index = 1;
   let ambiguous = false;
   for (let s = el.previousElementSibling; s; s = s.previousElementSibling) {
@@ -337,17 +377,18 @@ function nthOfType(el) {
   return ambiguous ? `:nth-of-type(${index})` : "";
 }
 
-function ancestorSegment(el) {
+function ancestorSegment(el: Element): { text: string; anchored: boolean } {
   const tid = testIdOf(el);
   if (tid) return { text: `[${tid.attr}=${cssString(tid.value)}]`, anchored: true };
   const id = stableId(el);
   if (id) return { text: idSelector(id), anchored: true };
   const classes = stableClasses(el);
-  const base = el.localName + (classes.length > 0 ? `.${cssEscape(classes[0])}` : "");
+  const first = classes[0];
+  const base = el.localName + (first !== undefined ? `.${cssEscape(first)}` : "");
   return { text: base, anchored: false };
 }
 
-function shortCss(el, doc) {
+function shortCss(el: Element, doc: Document): string | null {
   const tag = el.localName;
   const plain = [tag, ...classSuffixes(el).map((c) => tag + c)];
   for (const attr of attributeVariants(el)) {
@@ -360,9 +401,9 @@ function shortCss(el, doc) {
   for (const variant of plain) {
     if (uniqueCss(doc, variant, el)) return variant;
   }
-  const chain = [];
-  let current = el.parentElement;
-  const stages = [];
+  const chain: string[] = [];
+  let current: Element | null = el.parentElement;
+  const stages: string[][] = [];
   for (let depth = 1; depth <= 4 && current && current !== doc.documentElement; depth++) {
     const segment = ancestorSegment(current);
     chain.unshift(segment.text);
@@ -388,7 +429,7 @@ function shortCss(el, doc) {
 
 // ---------------------------------------------------------------- XPath
 
-function anchorXPath(el, doc) {
+function anchorXPath(el: Element, doc: Document): string | null {
   const tid = testIdOf(el);
   if (tid) {
     const xp = `//*[@${tid.attr}=${xpathLiteral(tid.value)}]`;
@@ -400,9 +441,9 @@ function anchorXPath(el, doc) {
 }
 
 /** A positional XPath that always names exactly this element. */
-export function pathXPath(el, doc = el.ownerDocument) {
-  const parts = [];
-  let current = el;
+export function pathXPath(el: Element, doc: Document = el.ownerDocument): string {
+  const parts: string[] = [];
+  let current: Element | null = el;
   while (current && current.nodeType === 1) {
     if (current !== el) {
       const anchor = anchorXPath(current, doc);
@@ -421,22 +462,17 @@ export function pathXPath(el, doc = el.ownerDocument) {
 
 // ---------------------------------------------------------------- the generator
 
-/**
- * Every selector for `el`, best first, each with its match count.
- *
- * @param {Element} el
- * @param {{document?: Document}} [options]
- */
-export function generateSelectors(el, options = {}) {
+/** Every selector for `el`, best first, each with its match count. */
+export function generateSelectors(el: Element, options: { document?: Document } = {}): GeneratedSelectors {
   const doc = options.document ?? el.ownerDocument;
-  const candidates = [];
-  const seen = new Set();
-  const add = (kind, syntax, value, count, extra = {}) => {
+  const candidates: GeneratedCandidate[] = [];
+  const seen = new Set<string>();
+  const add = (kind: string, syntax: SelectorSyntax, value: string, count: number | null, extra: { aria?: string; role?: string; name?: string } = {}) => {
     if (count === null || count < 0 || seen.has(`${syntax}:${value}`)) return;
     seen.add(`${syntax}:${value}`);
     candidates.push({ kind, syntax, value, count, unique: count === 1, ...extra });
   };
-  const addCss = (kind, value) => {
+  const addCss = (kind: string, value: string) => {
     const count = countCss(doc, value);
     // A selector built from this element's own attribute always matches it; the
     // count is what says whether it is the only one.
@@ -510,7 +546,7 @@ export function generateSelectors(el, options = {}) {
   };
 }
 
-function roleNameXPath(el, explicitRole, accessible) {
+function roleNameXPath(el: Element, explicitRole: string | null, accessible: AccessibleName): string | null {
   const test = tagTest(el);
   const lit = xpathLiteral(accessible.name);
   const roleClause = explicitRole ? `@role=${xpathLiteral(explicitRole)} and ` : "";
@@ -529,7 +565,7 @@ function roleNameXPath(el, explicitRole, accessible) {
   }
 }
 
-function countRoleName(doc, el, role, name) {
+function countRoleName(doc: Document, el: Element, role: string, name: string): number {
   let count = 0;
   const tag = el.localName;
   const same = doc.getElementsByTagName(tag);
