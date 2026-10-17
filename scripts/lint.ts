@@ -1,13 +1,17 @@
-// Checks the built extensions: our own manifest rules on both, then `web-ext lint`
-// (the linter Mozilla runs on add-ons) on dist/firefox. It is not run on dist/chrome:
-// it holds every manifest to Firefox's rules, and a Chrome manifest correctly has a
-// service_worker, no add-on id and the sidePanel permission. Run after `bun run build`.
+// Checks the source and the built extensions: the source rules of rules.ts on every
+// .ts file, our own manifest rules on both builds, then `web-ext lint` (the linter
+// Mozilla runs on add-ons) on dist/firefox. It is not run on dist/chrome: it holds
+// every manifest to Firefox's rules, and a Chrome manifest correctly has a
+// service_worker, no add-on id and the sidePanel permission. It builds first, so it
+// works on a tree that has not been built.
 //
 // The allow lists below are deliberate: a feature that needs a permission adds
 // it here, on purpose, and says why in the README.
 
-import { existsSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { join, relative, resolve } from "node:path";
+import { build } from "./build.ts";
+import { unexplainedAny } from "./rules.ts";
 
 const ROOT = resolve(import.meta.dir, "..");
 const WEB_EXT = "web-ext@10.7.0";
@@ -28,6 +32,25 @@ interface CheckedManifest {
 
 const problems: string[] = [];
 const problem = (text: string) => problems.push(text);
+
+await build({ zip: false, quiet: true });
+
+/** Every .ts file under `dir`. */
+function sourceFiles(dir: string): string[] {
+  return readdirSync(dir).flatMap((entry) => {
+    const path = join(dir, entry);
+    if (statSync(path).isDirectory()) return sourceFiles(path);
+    return path.endsWith(".ts") ? [path] : [];
+  });
+}
+
+for (const dir of ["src", "tests", "scripts"]) {
+  for (const file of sourceFiles(join(ROOT, dir))) {
+    for (const line of unexplainedAny(readFileSync(file, "utf8"))) {
+      problem(`${relative(ROOT, file)}:${line}: any needs a "// any: <why>" comment`);
+    }
+  }
+}
 
 for (const target of ["chrome", "firefox"]) {
   const file = join(ROOT, "dist", target, "manifest.json");
