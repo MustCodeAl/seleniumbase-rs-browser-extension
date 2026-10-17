@@ -1,0 +1,9 @@
+{
+  // The extension on its own: the browser's DOM and the WebExtension APIs, no
+  // Bun globals. Options come from ../tsconfig.json.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": ["chrome", "firefox-webext-browser"]
+  },
+  "include": ["**/*.ts"]
+}

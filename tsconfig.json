@@ -1,0 +1,38 @@
+{
+  // Type checking only: Bun runs and bundles the TypeScript itself (`bun run`,
+  // `bun test`, `Bun.build` in scripts/build.ts), so tsc never writes a file.
+  //
+  // This file covers the Bun side (scripts/, tests/) and, through their imports,
+  // the extension code. src/tsconfig.json covers src/ on its own, without Bun's
+  // globals, so the extension cannot lean on an API that only Bun has.
+  //
+  //   bun run typecheck    both projects
+  "compilerOptions": {
+    "target": "es2022",
+    "lib": ["es2022", "dom", "dom.iterable"],
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "noEmit": true,
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitReturns": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+
+    // Chrome's extension API (`chrome`), Firefox's (`browser`), and Bun's
+    // (`bun:test`, `Bun.build`, `node:fs`) for the scripts and tests.
+    "types": ["chrome", "firefox-webext-browser", "bun"]
+  },
+  "include": ["scripts/**/*.ts", "tests/**/*.ts", "src/env.d.ts"]
+}

@@ -38,36 +38,51 @@ const NOT_FEATURES = new Set(["shared", "manifest", "background"]);
 const BROWSERS = ["chrome", "firefox"] as const;
 type Browser = (typeof BROWSERS)[number];
 
+/** A JSON object: a manifest, or a fragment of one. */
+export type Json = { [key: string]: unknown };
+
+/** What a src/<feature>/feature.json may hold (see the top of this file). */
+interface FeatureSpec {
+  enabled?: boolean;
+  browsers?: string[];
+  background?: string;
+  panelEntry?: string;
+  panelViews?: string;
+  scripts?: string[];
+  manifest?: Json;
+  chrome?: Json;
+  firefox?: Json;
+}
+
 export interface Feature {
   name: string;
   dir: string;
   browsers: string[];
-  background?: string;
-  panelEntry?: string;
-  panelViews?: string;
+  background?: string | undefined;
+  panelEntry?: string | undefined;
+  panelViews?: string | undefined;
   scripts: string[];
-  manifest: Record<string, unknown>;
-  chrome: Record<string, unknown>;
-  firefox: Record<string, unknown>;
+  manifest: Json;
+  chrome: Json;
+  firefox: Json;
 }
 
 export interface BuildOptions {
   outRoot?: string;
   e2e?: boolean;
   zip?: boolean;
-  only?: string;
+  only?: string | undefined;
   quiet?: boolean;
 }
 
 export interface BuildResult {
-  targets: { name: string; dir: string; zip?: string; manifest: Record<string, any> }[];
+  targets: { name: string; dir: string; zip?: string | undefined; manifest: Json }[];
   features: string[];
 }
 
-type Json = Record<string, any>;
-
-function readJson(path: string): Json {
-  return JSON.parse(readFileSync(path, "utf8"));
+/** A JSON file of ours, read as the type it is written to hold (JSON.parse is untyped). */
+function readJson<T = Json>(path: string): T {
+  return JSON.parse(readFileSync(path, "utf8")) as T;
 }
 
 /** The features of the tree: every src/<name>/feature.json that is not disabled. */
@@ -78,7 +93,7 @@ export function discoverFeatures(): Feature[] {
     if (NOT_FEATURES.has(name) || !statSync(dir).isDirectory()) continue;
     const file = join(dir, "feature.json");
     if (!existsSync(file)) continue;
-    const spec = readJson(file);
+    const spec = readJson<FeatureSpec>(file);
     if (spec.enabled === false) continue;
     features.push({
       name,
@@ -107,12 +122,15 @@ export function mergeManifest(base: Json, extra: Json, where = "manifest"): Json
     const path = `${where}.${key}`;
     if (!(key in out)) {
       out[key] = value;
-    } else if (Array.isArray(out[key]) && Array.isArray(value)) {
-      out[key] = [...out[key], ...value.filter((v) => !out[key].some((o: unknown) => JSON.stringify(o) === JSON.stringify(v)))];
-    } else if (isObject(out[key]) && isObject(value)) {
-      out[key] = mergeManifest(out[key], value, path);
-    } else if (JSON.stringify(out[key]) !== JSON.stringify(value)) {
-      throw new Error(`${path}: two features set different values (${JSON.stringify(out[key])} and ${JSON.stringify(value)})`);
+      continue;
+    }
+    const current = out[key];
+    if (Array.isArray(current) && Array.isArray(value)) {
+      out[key] = [...current, ...value.filter((v) => !current.some((o: unknown) => JSON.stringify(o) === JSON.stringify(v)))];
+    } else if (isObject(current) && isObject(value)) {
+      out[key] = mergeManifest(current, value, path);
+    } else if (JSON.stringify(current) !== JSON.stringify(value)) {
+      throw new Error(`${path}: two features set different values (${JSON.stringify(current)} and ${JSON.stringify(value)})`);
     }
   }
   return out;
@@ -144,7 +162,12 @@ function png(size: number): Uint8Array {
   const radius = size * 0.22;
   const dot = size * 0.27;
   const c = (size - 1) / 2;
-  const mix = (a: number[], b: number[], t: number) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
+  type Rgb = readonly [number, number, number];
+  const mix = ([r, g, b]: Rgb, [r2, g2, b2]: Rgb, t: number): Rgb => [
+    Math.round(r + (r2 - r) * t),
+    Math.round(g + (g2 - g) * t),
+    Math.round(b + (b2 - b) * t),
+  ];
   for (let y = 0; y < size; y++) {
     rows.push(0);
     for (let x = 0; x < size; x++) {
@@ -154,7 +177,7 @@ function png(size: number): Uint8Array {
       const square = Math.min(Math.max(radius - Math.hypot(dx, dy) + 0.5, 0), 1);
       const circle = Math.min(Math.max(dot - Math.hypot(x - c, y - c) + 0.5, 0), 1);
       const ring = Math.min(Math.max(dot + size * 0.09 - Math.hypot(x - c, y - c) + 0.5, 0), 1) - circle;
-      let color = [17, 24, 39];
+      let color: Rgb = [17, 24, 39];
       color = mix(color, [250, 250, 250], Math.max(ring, 0));
       color = mix(color, [239, 68, 68], circle);
       rows.push(color[0], color[1], color[2], Math.round(255 * square));
@@ -258,7 +281,7 @@ function manifestFor(target: string, browser: Browser, features: Feature[], e2e:
   let manifest: Json = { ...base };
   delete manifest.chrome;
   delete manifest.firefox;
-  manifest = mergeManifest(manifest, base[browser] ?? {});
+  manifest = mergeManifest(manifest, (base[browser] as Json | undefined) ?? {});
   for (const feature of features) {
     manifest = mergeManifest(manifest, feature.manifest, `${feature.name}.manifest`);
     manifest = mergeManifest(manifest, feature[browser], `${feature.name}.${browser}`);

@@ -3,19 +3,40 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, statSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { inflateRawSync } from "node:zlib";
-import { build, discoverFeatures, mergeManifest } from "../scripts/build.ts";
+import { type BuildResult, build, discoverFeatures, mergeManifest } from "../scripts/build.ts";
 
-let out;
-let result;
+/** The manifest keys these tests read. */
+interface BuiltManifest {
+  manifest_version: number;
+  name: string;
+  icons: Record<string, string>;
+  action: { default_popup: string; default_icon: Record<string, string> };
+  background: { service_worker?: string; scripts?: string[] };
+  permissions: string[];
+  optional_host_permissions?: string[];
+  host_permissions?: string[];
+  content_scripts?: unknown[];
+  content_security_policy: { extension_pages: string };
+  side_panel?: { default_path: string };
+  sidebar_action?: { default_panel: string };
+  devtools_page?: string;
+  minimum_chrome_version?: string;
+  browser_specific_settings?: { gecko: { id: string; data_collection_permissions: unknown } };
+  web_accessible_resources?: unknown[];
+}
+
+let out: string;
+let result: BuildResult;
 
 beforeAll(async () => {
   out = mkdtempSync(join(tmpdir(), "sbrs-build-"));
   result = await build({ outRoot: out, e2e: true, quiet: true });
 });
 
-const manifestOf = (name) => JSON.parse(readFileSync(join(out, name, "manifest.json"), "utf8"));
+// JSON.parse is untyped; the build wrote these files.
+const manifestOf = (name: string) => JSON.parse(readFileSync(join(out, name, "manifest.json"), "utf8")) as BuiltManifest;
 
-function walk(dir) {
+function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
     const path = join(dir, entry);
     return statSync(path).isDirectory() ? walk(path) : [path];
@@ -47,7 +68,7 @@ describe("chrome", () => {
   test("Manifest V3 with a service worker, a side panel and the Recorder plugin page", () => {
     expect(m().manifest_version).toBe(3);
     expect(m().background).toEqual({ service_worker: "background.js" });
-    expect(m().side_panel.default_path).toBe("ui/panel.html");
+    expect(m().side_panel?.default_path).toBe("ui/panel.html");
     expect(m().devtools_page).toBe("devtools-recorder/devtools.html");
     expect(m().action.default_popup).toBe("ui/panel.html");
   });
@@ -71,9 +92,9 @@ describe("firefox", () => {
   test("background scripts, a gecko id and no Chromium-only keys", () => {
     expect(m().manifest_version).toBe(3);
     expect(m().background).toEqual({ scripts: ["background.js"] });
-    expect(m().browser_specific_settings.gecko.id).toBe("seleniumbase-rs-companion@seleniumbase-rs");
-    expect(m().browser_specific_settings.gecko.data_collection_permissions).toEqual({ required: ["none"] });
-    expect(m().sidebar_action.default_panel).toBe("ui/panel.html");
+    expect(m().browser_specific_settings?.gecko.id).toBe("seleniumbase-rs-companion@seleniumbase-rs");
+    expect(m().browser_specific_settings?.gecko.data_collection_permissions).toEqual({ required: ["none"] });
+    expect(m().sidebar_action?.default_panel).toBe("ui/panel.html");
     expect(m().devtools_page).toBeUndefined();
     expect(m().side_panel).toBeUndefined();
     expect(m().minimum_chrome_version).toBeUndefined();
@@ -124,7 +145,7 @@ describe("files", () => {
       m.side_panel?.default_path,
       m.sidebar_action?.default_panel,
       m.devtools_page,
-    ].filter(Boolean);
+    ].filter((path): path is string => typeof path === "string" && path !== "");
     for (const path of paths) {
       expect(existsSync(join(out, target, path))).toBe(true);
     }
@@ -133,7 +154,8 @@ describe("files", () => {
   test.each(targets)("%s: every page loads only files that exist, from itself", (target) => {
     for (const file of walk(join(out, target)).filter((f) => f.endsWith(".html"))) {
       const html = readFileSync(file, "utf8");
-      for (const [, attr] of html.matchAll(/(?:src|href)="([^"]+)"/g)) {
+      for (const match of html.matchAll(/(?:src|href)="([^"]+)"/g)) {
+        const attr = match[1] ?? "";
         expect(attr).not.toMatch(/^[a-z]+:/i);
         expect(existsSync(join(file, "..", attr))).toBe(true);
       }
@@ -170,7 +192,7 @@ describe("files", () => {
 });
 
 describe("zips", () => {
-  function entries(path) {
+  function entries(path: string): Map<string, Buffer> {
     const buf = readFileSync(path);
     let eocd = buf.length - 22;
     while (eocd >= 0 && buf.readUInt32LE(eocd) !== 0x06054b50) eocd--;
@@ -198,15 +220,18 @@ describe("zips", () => {
   }
 
   test.each(["chrome", "firefox"])("%s zip holds the dist exactly", (browser) => {
-    const zip = result.targets.find((t) => t.name === browser).zip;
+    const zip = result.targets.find((t) => t.name === browser)?.zip;
+    if (zip === undefined) throw new Error(`no zip for ${browser}`);
     const files = entries(zip);
     const dist = walk(join(out, browser)).map((f) => f.slice(join(out, browser).length + 1));
     expect([...files.keys()].sort()).toEqual(dist.sort());
-    expect(JSON.parse(files.get("manifest.json").toString()).manifest_version).toBe(3);
+    expect(JSON.parse(String(files.get("manifest.json"))).manifest_version).toBe(3);
   });
 
   test("the e2e variants are not zipped", () => {
-    expect(result.targets.find((t) => t.name === "chrome-e2e").zip).toBeUndefined();
-    expect(result.targets.find((t) => t.name === "firefox-e2e").zip).toBeUndefined();
+    expect(result.targets.find((t) => t.name === "chrome-e2e")).toBeDefined();
+    expect(result.targets.find((t) => t.name === "chrome-e2e")?.zip).toBeUndefined();
+    expect(result.targets.find((t) => t.name === "firefox-e2e")).toBeDefined();
+    expect(result.targets.find((t) => t.name === "firefox-e2e")?.zip).toBeUndefined();
   });
 });

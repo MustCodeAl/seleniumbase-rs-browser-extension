@@ -15,6 +15,17 @@ const WEB_EXT = "web-ext@10.7.0";
 const ALLOWED_PERMISSIONS = new Set(["activeTab", "scripting", "storage", "sidePanel"]);
 const ALLOWED_OPTIONAL_HOSTS = new Set(["<all_urls>"]);
 
+/** The manifest keys the rules below read. */
+interface CheckedManifest {
+  permissions?: string[];
+  optional_permissions?: string[];
+  optional_host_permissions?: string[];
+  host_permissions?: string[];
+  content_scripts?: unknown[];
+  web_accessible_resources?: unknown[];
+  content_security_policy?: { extension_pages?: string };
+}
+
 const problems: string[] = [];
 const problem = (text: string) => problems.push(text);
 
@@ -24,7 +35,8 @@ for (const target of ["chrome", "firefox"]) {
     problem(`${target}: dist/${target}/manifest.json is missing; run bun run build`);
     continue;
   }
-  const m = JSON.parse(readFileSync(file, "utf8"));
+  // JSON.parse is untyped; the build wrote this file, so it has the manifest's shape.
+  const m = JSON.parse(readFileSync(file, "utf8")) as CheckedManifest;
   for (const p of m.permissions ?? []) if (!ALLOWED_PERMISSIONS.has(p)) problem(`${target}: permission ${p} is not in the allow list`);
   for (const p of m.optional_permissions ?? []) if (!ALLOWED_PERMISSIONS.has(p)) problem(`${target}: optional permission ${p} is not in the allow list`);
   for (const p of m.optional_host_permissions ?? []) if (!ALLOWED_OPTIONAL_HOSTS.has(p)) problem(`${target}: optional host permission ${p} is not in the allow list`);

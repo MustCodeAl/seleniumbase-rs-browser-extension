@@ -9,9 +9,14 @@
     "build": "bun run scripts/build.ts",
     "build:e2e": "bun run scripts/build.ts --e2e",
     "test": "bun test",
-    "lint": "bun run scripts/lint.ts"
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p src/tsconfig.json",
+    "lint": "bun run typecheck && bun run scripts/lint.ts"
   },
   "devDependencies": {
-    "happy-dom": "21.0.1"
+    "@types/bun": "1.4.3",
+    "@types/chrome": "0.3.5",
+    "@types/firefox-webext-browser": "143.0.1",
+    "happy-dom": "21.0.1",
+    "typescript": "7.0.2"
   }
 }
