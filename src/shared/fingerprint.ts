@@ -1,7 +1,9 @@
 // "What this page sees" as a seleniumbase-rs `Fingerprint`
-// (src/stealth/fingerprint.rs). Only fields that match a Fingerprint field are
-// written, under the Rust field names; a value the browser did not give is left
-// out, never null, so the JSON deserialises into a Fingerprint as it is.
+// (src/stealth/fingerprint.rs, as of 0.5.0). Only fields that match a Fingerprint
+// field are written, under the Rust field names, and a setting made of several
+// values (the screen, the WebGL strings, the device counts) is one object, as the
+// Rust side reads it. A value the browser did not give is left out, never null, so
+// the JSON deserialises into a Fingerprint as it is (it refuses an unknown field).
 
 // ---------------------------------------------------------------- what a page gives
 
@@ -136,7 +138,30 @@ export interface ClientHints {
   form_factors: string[];
 }
 
-/** The fields of seleniumbase-rs's `Fingerprint` that a browser can answer, under the Rust names. */
+/** A width and a height in CSS pixels: `ScreenSize` in seleniumbase-rs. */
+export interface ScreenSize {
+  width: number;
+  height: number;
+}
+
+/** The unmasked WebGL strings: `WebGl` in seleniumbase-rs. */
+export interface WebGlStrings {
+  vendor?: string;
+  renderer?: string;
+}
+
+/** How many devices of each kind `enumerateDevices()` lists: `MediaDevices` in seleniumbase-rs. */
+export interface MediaDeviceCounts {
+  audio_inputs?: number;
+  audio_outputs?: number;
+  video_inputs?: number;
+}
+
+/**
+ * The settings of seleniumbase-rs's `Fingerprint` (0.5.0) that a browser can answer,
+ * under the Rust names, each as the plain value the Rust side reads as `Spoof::Value`.
+ * It refuses a field it does not know, so nothing else is written.
+ */
 export interface Fingerprint {
   browser_type?: string;
   os_type?: string;
@@ -155,15 +180,12 @@ export interface Fingerprint {
   languages?: string;
   accept_languages?: string;
   timezone?: string;
-  screen_width?: number;
-  screen_height?: number;
+  screen?: ScreenSize;
+  avail_screen?: ScreenSize;
   pixel_ratio?: number;
   color_depth?: number;
-  webgl_vendor?: string;
-  webgl_renderer?: string;
-  audio_inputs?: number;
-  audio_outputs?: number;
-  video_inputs?: number;
+  webgl?: WebGlStrings;
+  media_devices?: MediaDeviceCounts;
   client_hints?: ClientHints;
 }
 
@@ -181,6 +203,34 @@ function put<K extends keyof Fingerprint>(target: Fingerprint, key: K, value: Fi
   if (typeof value === "number" && Number.isNaN(value)) return;
   if (typeof value === "string" && value === "") return;
   target[key] = value;
+}
+
+function finite(value: number | null | undefined): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+/** A size, if the browser gave both of its numbers. */
+function sizeOf(width: number | null | undefined, height: number | null | undefined): ScreenSize | undefined {
+  return finite(width) && finite(height) ? { width, height } : undefined;
+}
+
+/** The WebGL strings the browser gave, the unmasked ones before the masked. */
+function webGlOf(gl: ProbeWebGl | null | undefined): WebGlStrings | undefined {
+  const vendor = gl?.unmaskedVendor ?? gl?.vendor;
+  const renderer = gl?.unmaskedRenderer ?? gl?.renderer;
+  const out: WebGlStrings = {};
+  if (vendor) out.vendor = vendor;
+  if (renderer) out.renderer = renderer;
+  return vendor || renderer ? out : undefined;
+}
+
+/** The device counts the browser gave. */
+function mediaOf(media: ProbeMedia | null | undefined): MediaDeviceCounts | undefined {
+  const out: MediaDeviceCounts = {};
+  if (finite(media?.audioinput)) out.audio_inputs = media.audioinput;
+  if (finite(media?.audiooutput)) out.audio_outputs = media.audiooutput;
+  if (finite(media?.videoinput)) out.video_inputs = media.videoinput;
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 function browserType(ua: string): string {
@@ -256,16 +306,12 @@ export function toFingerprint(probe: PageProbe): Fingerprint {
   put(fp, "languages", languages);
   put(fp, "accept_languages", languages);
   put(fp, "timezone", probe.timezone?.name);
-  put(fp, "screen_width", probe.screen?.width);
-  put(fp, "screen_height", probe.screen?.height);
+  put(fp, "screen", sizeOf(probe.screen?.width, probe.screen?.height));
+  put(fp, "avail_screen", sizeOf(probe.screen?.availWidth, probe.screen?.availHeight));
   put(fp, "pixel_ratio", probe.devicePixelRatio);
   put(fp, "color_depth", probe.screen?.colorDepth);
-  const gl = probe.webgl;
-  put(fp, "webgl_vendor", gl?.unmaskedVendor ?? gl?.vendor);
-  put(fp, "webgl_renderer", gl?.unmaskedRenderer ?? gl?.renderer);
-  put(fp, "audio_inputs", probe.media?.audioinput);
-  put(fp, "audio_outputs", probe.media?.audiooutput);
-  put(fp, "video_inputs", probe.media?.videoinput);
+  put(fp, "webgl", webGlOf(probe.webgl));
+  put(fp, "media_devices", mediaOf(probe.media));
   const hints = clientHints(probe.userAgentData);
   if (hints) fp.client_hints = hints;
   return fp;

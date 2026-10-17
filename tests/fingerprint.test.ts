@@ -76,15 +76,16 @@ describe("toFingerprint", () => {
     expect(fp.locale).toBe("en-US");
     expect(fp.languages).toBe("en-US,en;q=0.9");
     expect(fp.timezone).toBe("Europe/Paris");
-    expect(fp.screen_width).toBe(1512);
-    expect(fp.screen_height).toBe(982);
+    // seleniumbase-rs 0.5.0 reads a screen as one setting, not as two numbers.
+    expect(fp.screen).toEqual({ width: 1512, height: 982 });
+    expect(fp.avail_screen).toEqual({ width: 1512, height: 944 });
     expect(fp.pixel_ratio).toBe(2);
     expect(fp.color_depth).toBe(30);
   });
 
   test("webgl prefers the unmasked values", () => {
-    expect(fp.webgl_vendor).toBe("Google Inc. (Apple)");
-    expect(fp.webgl_renderer).toContain("Apple M1");
+    expect(fp.webgl?.vendor).toBe("Google Inc. (Apple)");
+    expect(fp.webgl?.renderer).toContain("Apple M1");
   });
 
   test("client hints", () => {
@@ -102,9 +103,20 @@ describe("toFingerprint", () => {
   });
 
   test("media devices", () => {
-    expect(fp.audio_inputs).toBe(1);
-    expect(fp.audio_outputs).toBe(1);
-    expect(fp.video_inputs).toBe(1);
+    expect(fp.media_devices).toEqual({ audio_inputs: 1, audio_outputs: 1, video_inputs: 1 });
+  });
+
+  test("a setting that needs several values is left out unless the browser gave them all", () => {
+    const partial = toFingerprint({
+      navigator: { userAgent: "Mozilla/5.0 (X11; Linux x86_64) Chrome/130.0.0.0" },
+      screen: { width: 1000 },
+      webgl: { renderer: "ANGLE" },
+      media: { audiooutput: 2 },
+    });
+    expect("screen" in partial).toBe(false);
+    expect("avail_screen" in partial).toBe(false);
+    expect(partial.webgl).toEqual({ renderer: "ANGLE" });
+    expect(partial.media_devices).toEqual({ audio_outputs: 2 });
   });
 
   test("a missing value is left out, not null", () => {
@@ -120,12 +132,14 @@ describe("toFingerprint", () => {
     }
   });
 
+  // seleniumbase-rs 0.5.0 refuses a field it does not know (deny_unknown_fields), and its
+  // screen, WebGL strings and media devices are one setting each, not flat numbers.
   test("only keys the Rust Fingerprint knows", () => {
     const known = new Set([
       "browser_type", "os_type", "core_version", "user_agent", "platform", "hardware_concurrency", "device_memory",
       "max_touch_points", "vendor", "oscpu", "product_sub", "build_id", "app_version", "locale", "languages",
-      "accept_languages", "timezone", "screen_width", "screen_height", "pixel_ratio", "color_depth", "webgl_vendor",
-      "webgl_renderer", "audio_inputs", "audio_outputs", "video_inputs", "client_hints",
+      "accept_languages", "timezone", "screen", "avail_screen", "pixel_ratio", "color_depth", "webgl",
+      "media_devices", "client_hints",
     ]);
     for (const key of Object.keys(fp)) {
       expect(known.has(key)).toBe(true);
