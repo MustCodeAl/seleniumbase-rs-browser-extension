@@ -334,7 +334,7 @@ describe("ready-to-copy calls", () => {
     expect(click.basecase).toBe('sb.click("#go").await?;');
     const text = calls.find((c) => c.label === "assert text");
     expect(text.cdp).toBe('page.locator("#go").expect().to_contain_text("Order now").await?;');
-    expect(text.basecase).toBe('sb.assert_text("#go", "Order now").await?;');
+    expect(text.basecase).toBe('sb.assert_text("Order now", "#go").await?;');
   });
 
   test("a text field and a select", () => {

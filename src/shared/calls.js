@@ -48,7 +48,7 @@ export function callsFor(selector, info = {}) {
     calls.push({
       label: "assert text",
       cdp: `${loc}.expect().to_contain_text(${text}).await?;`,
-      basecase: `sb.assert_text(${sel}, ${text}).await?;`,
+      basecase: `sb.assert_text(${text}, ${sel}).await?;`,
     });
   }
   return calls;
