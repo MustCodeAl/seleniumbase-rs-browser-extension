@@ -1,7 +1,3 @@
----
-title: "End-to-end tests"
----
-
 # End-to-end tests
 
 A Rust crate (`sbrs-companion-e2e`) that loads the built extension into a real Chrome (and Edge) through

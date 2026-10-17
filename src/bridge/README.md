@@ -1,7 +1,3 @@
----
-title: "bridge (placeholder)"
----
-
 # bridge (placeholder)
 
 The live bridge between the extension and a running seleniumbase-rs process. Nothing here yet.
