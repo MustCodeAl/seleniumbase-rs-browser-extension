@@ -1,10 +1,11 @@
 # End-to-end tests
 
-A Rust crate (`sbrs-companion-e2e`) that loads the built extension into a real Chrome (and Edge) through
-seleniumbase-rs's pure CDP engine, and a shell check that loads it into a real Firefox in Docker.
+A Rust crate (`sbrs-companion-e2e`, built against seleniumbase-rs `v0.5.0`, in `Cargo.toml` and in the scratch crate
+of `src/scratch.rs`) that loads the built extension into a real Chrome (and Edge) through seleniumbase-rs's pure CDP
+engine, and a shell check that loads it into a real Firefox in Docker.
 
 ```sh
-bun run scripts/build.ts --e2e      # dist/chrome, dist/firefox, dist/chrome-e2e, dist/firefox-e2e
+bun run build:e2e                   # dist/chrome, dist/firefox, dist/chrome-e2e, dist/firefox-e2e
 cd e2e
 export CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0
 cargo test --test e2e                                       # parity with ActionRecorder; no browser
