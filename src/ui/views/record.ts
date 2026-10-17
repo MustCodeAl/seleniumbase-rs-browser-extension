@@ -1,14 +1,15 @@
 // The Record view: start and stop, the steps (edit, move, delete), and export.
 
-import { ext } from "../../shared/api.js";
-import { FORMATS } from "../../shared/codegen/index.js";
-import { copyText } from "../../shared/clipboard.js";
-import { h } from "../../shared/dom.js";
-import { MSG } from "../../shared/protocol.js";
-import { pickSelector } from "../../shared/steps.js";
-import { registerView } from "../registry.js";
+import { ext } from "../../shared/api.ts";
+import { type ExportFormat, FORMATS, isExportFormat } from "../../shared/codegen/index.ts";
+import { copyText } from "../../shared/clipboard.ts";
+import { h } from "../../shared/dom.ts";
+import { errorText } from "../../shared/guards.ts";
+import { type ExportedFile, MSG, type RecorderSnapshot } from "../../shared/protocol.ts";
+import { type Step, type StepType, pickSelector } from "../../shared/steps.ts";
+import { registerView } from "../registry.ts";
 
-const TYPE_LABELS = {
+const TYPE_LABELS: Record<StepType, string> = {
   navigate: "open",
   click: "click",
   doubleClick: "double click",
@@ -28,7 +29,7 @@ const TYPE_LABELS = {
   unsupported: "skipped",
 };
 
-function summarize(s) {
+function summarize(s: Step): string {
   const selector = pickSelector(s) ?? "";
   switch (s.type) {
     case "navigate":
@@ -54,7 +55,7 @@ function summarize(s) {
   }
 }
 
-function remembered(key, fallback) {
+function remembered(key: string, fallback: string): string {
   try {
     return localStorage.getItem(key) ?? fallback;
   } catch {
@@ -62,7 +63,7 @@ function remembered(key, fallback) {
   }
 }
 
-function remember(key, value) {
+function remember(key: string, value: string): void {
   try {
     localStorage.setItem(key, value);
   } catch {
@@ -70,7 +71,7 @@ function remember(key, value) {
   }
 }
 
-function download(file) {
+function download(file: ExportedFile): void {
   const url = URL.createObjectURL(new Blob([file.text], { type: file.mime }));
   const link = h("a", { href: url, download: file.filename });
   document.body.append(link);
@@ -84,54 +85,63 @@ registerView({
   title: "Record",
   order: 10,
   render(root, ctx) {
-    let state = { active: false, steps: [], settings: {}, name: "" };
-    let editing = null;
-    let format = remembered("sbrs.format", "cdp");
+    let state: RecorderSnapshot = {
+      active: false,
+      tabId: null,
+      warning: null,
+      steps: [],
+      settings: { recordScroll: false, entry: "test" },
+      name: "",
+      title: "",
+    };
+    let editing: string | null = null;
+    const savedFormat = remembered("sbrs.format", "cdp");
+    let format: ExportFormat = isExportFormat(savedFormat) ? savedFormat : "cdp";
     let previewText = "";
     let busy = false;
 
-    const guard = async (task) => {
+    const guard = async (task: () => Promise<void>): Promise<void> => {
       if (busy) return;
       busy = true;
       try {
         await task();
         ctx.notify(null);
       } catch (error) {
-        ctx.notify(error.message);
+        ctx.notify(errorText(error));
       } finally {
         busy = false;
       }
     };
 
-    async function refresh() {
+    async function refresh(): Promise<void> {
       try {
         state = await ctx.call(MSG.RECORDER_STATE);
         ctx.notify(state.warning);
         draw();
         await refreshPreview();
       } catch (error) {
-        ctx.notify(error.message);
+        ctx.notify(errorText(error));
       }
     }
 
-    async function refreshPreview() {
+    async function refreshPreview(): Promise<void> {
       try {
         const file = await ctx.call(MSG.RECORDER_EXPORT, { format, name: state.name, entry: state.settings.entry });
         previewText = file.text;
       } catch (error) {
-        previewText = `// ${error.message}`;
+        previewText = `// ${errorText(error)}`;
       }
       const pre = root.querySelector("pre[data-preview]");
       if (pre) pre.textContent = previewText;
     }
 
-    async function edit(id, patch) {
+    async function edit(id: string, patch: Record<string, unknown>): Promise<void> {
       state = await ctx.call(MSG.RECORDER_EDIT_STEP, { id, patch });
       draw();
       await refreshPreview();
     }
 
-    async function start() {
+    async function start(): Promise<void> {
       const tab = await ctx.activeTab();
       // One prompt, once: access to every site is what lets the recording follow
       // links. Without it the recorder still works on this page.
@@ -147,7 +157,8 @@ registerView({
       await refreshPreview();
     }
 
-    function stepEditor(s) {
+    function stepEditor(s: Step) {
+      const id = s.id ?? "";
       const candidates = (s.target?.selectors ?? []).filter((c) => c.syntax !== "aria");
       const rows = [];
       if (candidates.length > 0 || s.selector) {
@@ -157,9 +168,9 @@ registerView({
           { "aria-label": "Selector" },
           candidates.map((c) => h("option", { value: c.value, text: `${c.kind}: ${c.value}`, selected: c.value === current && !s.selector })),
         );
-        choose.addEventListener("change", () => edit(s.id, { selector: choose.value }));
+        choose.addEventListener("change", () => edit(id, { selector: choose.value }));
         const custom = h("input", { type: "text", value: s.selector ?? "", placeholder: "or type a selector", "aria-label": "Custom selector" });
-        custom.addEventListener("change", () => edit(s.id, { selector: custom.value.trim() }));
+        custom.addEventListener("change", () => edit(id, { selector: custom.value.trim() }));
         rows.push(h("label", {}, "Selector", choose), h("label", {}, "Custom", custom));
       }
       if (["change", "setValue"].includes(s.type)) {
@@ -170,31 +181,32 @@ registerView({
           placeholder: s.sensitive ? "never recorded" : "",
           "aria-label": "Value",
         });
-        value.addEventListener("change", () => edit(s.id, { value: value.value }));
+        value.addEventListener("change", () => edit(id, { value: value.value }));
         rows.push(h("label", {}, "Value", value));
       }
       if (s.type === "navigate") {
         const url = h("input", { type: "text", value: s.url ?? "", "aria-label": "Address" });
-        url.addEventListener("change", () => edit(s.id, { url: url.value }));
+        url.addEventListener("change", () => edit(id, { url: url.value }));
         rows.push(h("label", {}, "Address", url));
       }
       if (s.type === "keyPress") {
         const key = h("input", { type: "text", value: s.key ?? "", "aria-label": "Key" });
-        key.addEventListener("change", () => edit(s.id, { key: key.value }));
+        key.addEventListener("change", () => edit(id, { key: key.value }));
         rows.push(h("label", {}, "Key", key));
       }
       return h("div", { class: "edit" }, rows);
     }
 
-    function stepItem(s, index) {
-      const move = async (delta) => {
-        state = await ctx.call(MSG.RECORDER_MOVE_STEP, { id: s.id, delta });
+    function stepItem(s: Step, index: number) {
+      const id = s.id ?? "";
+      const move = async (delta: number): Promise<void> => {
+        state = await ctx.call(MSG.RECORDER_MOVE_STEP, { id, delta });
         draw();
         await refreshPreview();
       };
       return h(
         "li",
-        { dataset: { id: s.id } },
+        { dataset: { id } },
         h(
           "div",
           { class: "step-head" },
@@ -204,7 +216,7 @@ registerView({
           h(
             "span",
             { class: "step-tools" },
-            h("button", { type: "button", title: "Edit", "aria-label": "Edit step", text: "Edit", onclick: () => { editing = editing === s.id ? null : s.id; draw(); } }),
+            h("button", { type: "button", title: "Edit", "aria-label": "Edit step", text: "Edit", onclick: () => { editing = editing === id ? null : id; draw(); } }),
             h("button", { type: "button", title: "Move up", "aria-label": "Move step up", text: "↑", disabled: index === 0, onclick: () => guard(() => move(-1)) }),
             h("button", { type: "button", title: "Move down", "aria-label": "Move step down", text: "↓", disabled: index === state.steps.length - 1, onclick: () => guard(() => move(1)) }),
             h("button", {
@@ -215,18 +227,18 @@ registerView({
               text: "×",
               onclick: () =>
                 guard(async () => {
-                  state = await ctx.call(MSG.RECORDER_DELETE_STEP, { id: s.id });
+                  state = await ctx.call(MSG.RECORDER_DELETE_STEP, { id });
                   draw();
                   await refreshPreview();
                 }),
             }),
           ),
         ),
-        editing === s.id ? stepEditor(s) : null,
+        editing === id ? stepEditor(s) : null,
       );
     }
 
-    function draw() {
+    function draw(): void {
       if (root.contains(document.activeElement) && document.activeElement?.tagName === "INPUT") return;
       const toggle = state.active
         ? h("button", { type: "button", class: "primary", text: "Stop", onclick: () => guard(async () => { state = await ctx.call(MSG.RECORDER_STOP); draw(); await refreshPreview(); }) })
@@ -246,7 +258,7 @@ registerView({
       );
       const formatSelect = h("select", { "aria-label": "Export format" }, FORMATS.map((f) => h("option", { value: f.id, text: f.label, selected: f.id === format })));
       formatSelect.addEventListener("change", () => {
-        format = formatSelect.value;
+        if (isExportFormat(formatSelect.value)) format = formatSelect.value;
         remember("sbrs.format", format);
         void refreshPreview();
         draw();
@@ -261,7 +273,7 @@ registerView({
           await refreshPreview();
         }),
       );
-      const exportNow = async () => ctx.call(MSG.RECORDER_EXPORT, { format, name: state.name, entry: state.settings.entry });
+      const exportNow = async (): Promise<ExportedFile> => ctx.call(MSG.RECORDER_EXPORT, { format, name: state.name, entry: state.settings.entry });
       root.replaceChildren(
         h(
           "div",

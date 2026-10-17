@@ -12,6 +12,13 @@ export function isElement(value: unknown): value is Element {
   return isNode(value) && value.nodeType === 1;
 }
 
+/** The element with this id; a page that lacks it is broken, so this throws. */
+export function byId(id: string): HTMLElement {
+  const el = document.getElementById(id);
+  if (!el) throw new Error(`#${id} is missing from the page`);
+  return el;
+}
+
 /** A child of `h`: a node, text, a number, a list of these, or something falsy to skip. */
 export type Child = Node | string | number | false | null | undefined | Child[];
 

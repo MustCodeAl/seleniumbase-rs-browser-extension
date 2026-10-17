@@ -1,16 +1,18 @@
 // The Page view: what this page sees, from the page's own world.
 
-import { h } from "../../shared/dom.js";
-import { MSG } from "../../shared/protocol.js";
-import { copyButton } from "../../shared/pickview.js";
-import { registerView } from "../registry.js";
+import { h } from "../../shared/dom.ts";
+import type { PageProbe } from "../../shared/fingerprint.ts";
+import { errorText } from "../../shared/guards.ts";
+import { MSG, type Replies } from "../../shared/protocol.ts";
+import { copyButton } from "../../shared/pickview.ts";
+import { registerView } from "../registry.ts";
 
-function fact(label, value) {
+function fact(label: string, value: unknown) {
   const text = value === null || value === undefined ? "n/a" : typeof value === "object" ? JSON.stringify(value) : String(value);
   return h("tr", {}, h("th", { text: label }), h("td", {}, h("code", { text })));
 }
 
-function facts(probe) {
+function facts(probe: PageProbe) {
   const nav = probe.navigator ?? {};
   const gl = probe.webgl;
   const hints = probe.userAgentData;
@@ -40,10 +42,10 @@ registerView({
   title: "Page",
   order: 30,
   render(root, ctx) {
-    let report = null;
+    let report: Replies[typeof MSG.INSPECTOR_PROBE] | null = null;
     let running = false;
 
-    async function run() {
+    async function run(): Promise<void> {
       if (running) return;
       running = true;
       ctx.notify(null);
@@ -53,14 +55,14 @@ registerView({
         report = await ctx.call(MSG.INSPECTOR_PROBE, { tabId: tab.id });
       } catch (error) {
         report = null;
-        ctx.notify(error.message);
+        ctx.notify(errorText(error));
       } finally {
         running = false;
         draw();
       }
     }
 
-    function draw() {
+    function draw(): void {
       root.replaceChildren(
         h(
           "div",

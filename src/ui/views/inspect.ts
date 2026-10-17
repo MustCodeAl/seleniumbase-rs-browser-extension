@@ -1,37 +1,38 @@
 // The Inspect view: start the picker on the page, and show the last pick.
 
-import { h } from "../../shared/dom.js";
-import { MSG } from "../../shared/protocol.js";
-import { copyButton, renderPick } from "../../shared/pickview.js";
-import { registerView } from "../registry.js";
+import { h } from "../../shared/dom.ts";
+import { errorText } from "../../shared/guards.ts";
+import { MSG } from "../../shared/protocol.ts";
+import { type PickResult, copyButton, renderPick } from "../../shared/pickview.ts";
+import { registerView } from "../registry.ts";
 
 registerView({
   id: "inspect",
   title: "Inspect",
   order: 20,
   render(root, ctx) {
-    let last = null;
+    let last: PickResult | null = null;
 
-    async function pick() {
+    async function pick(): Promise<void> {
       try {
         const tab = await ctx.activeTab();
         await ctx.call(MSG.INSPECTOR_PICK, { tabId: tab.id });
         ctx.notify("Click an element on the page. Escape cancels.");
       } catch (error) {
-        ctx.notify(error.message);
+        ctx.notify(errorText(error));
       }
     }
 
-    async function refresh() {
+    async function refresh(): Promise<void> {
       try {
         last = (await ctx.call(MSG.INSPECTOR_LAST)).last;
       } catch (error) {
-        ctx.notify(error.message);
+        ctx.notify(errorText(error));
       }
       draw();
     }
 
-    function draw() {
+    function draw(): void {
       root.replaceChildren(
         h(
           "div",

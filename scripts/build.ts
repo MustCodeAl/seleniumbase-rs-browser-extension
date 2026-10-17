@@ -155,6 +155,11 @@ function copyable(feature: Feature, file: string): boolean {
   return true;
 }
 
+/** The name a source file is built to: a TypeScript or JavaScript module becomes a `.js` script. */
+function builtName(source: string): string {
+  return source.replace(/\.[cm]?[jt]s$/, ".js");
+}
+
 // ------------------------------------------------------------------ icons
 
 function png(size: number): Uint8Array {
@@ -335,7 +340,7 @@ async function buildTarget(name: string, browser: Browser, features: Feature[], 
     const panelEntry = join(gen, `panel-${name}.js`);
     const lines = [...views, join(shell.dir, shell.panelEntry as string)].map((p) => `import ${JSON.stringify(p)};`);
     writeFileSync(panelEntry, `${lines.join("\n")}\n`);
-    await bundle(panelEntry, join(dir, shell.name), name, shell.panelEntry as string);
+    await bundle(panelEntry, join(dir, shell.name), name, builtName(shell.panelEntry as string));
   }
 
   mkdirSync(join(dir, "icons"), { recursive: true });
