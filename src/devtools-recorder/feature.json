@@ -1,6 +1,6 @@
 {
   "browsers": ["chrome"],
-  "scripts": ["devtools.js"],
+  "scripts": ["devtools.ts"],
   "manifest": {
     "devtools_page": "devtools-recorder/devtools.html"
   }

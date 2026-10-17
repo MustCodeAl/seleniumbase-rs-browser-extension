@@ -6,19 +6,26 @@
 //
 // This is a Chromium feature (Chrome, Edge): Firefox has no Recorder.
 
-import { basecaseStatements } from "../shared/codegen/basecase.js";
-import { cdpStatements } from "../shared/codegen/cdp.js";
-import { generate } from "../shared/codegen/index.js";
-import { fromReplay } from "../shared/codegen/replay.js";
+import { basecaseStatements } from "../shared/codegen/basecase.ts";
+import { cdpStatements } from "../shared/codegen/cdp.ts";
+import { generate } from "../shared/codegen/index.ts";
+import { fromReplay } from "../shared/codegen/replay.ts";
+import { isRecord } from "../shared/guards.ts";
 
 const MEDIA_TYPE = "text/x-rust";
 
-function makePlugin(format) {
+/** What the Recorder panel calls on an export plugin: a recording or a step in, Rust out. */
+export interface ExportPlugin {
+  stringify(recording: unknown): Promise<string>;
+  stringifyStep(step: unknown): Promise<string>;
+}
+
+function makePlugin(format: "cdp" | "basecase"): ExportPlugin {
   const statements = format === "cdp" ? cdpStatements : basecaseStatements;
   return {
     /** The whole recording, as a test. */
     async stringify(recording) {
-      const name = typeof recording?.title === "string" ? recording.title : "recorded_test";
+      const name = isRecord(recording) && typeof recording.title === "string" ? recording.title : "recorded_test";
       return generate(format, fromReplay(recording), { name, entry: "test" }).text;
     },
     /** One step, as the statements it becomes. */
@@ -30,7 +37,7 @@ function makePlugin(format) {
   };
 }
 
-export const plugins = {
+export const plugins: Record<"cdp" | "basecase", ExportPlugin> = {
   cdp: makePlugin("cdp"),
   basecase: makePlugin("basecase"),
 };
