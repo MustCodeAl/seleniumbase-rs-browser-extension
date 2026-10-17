@@ -25,7 +25,7 @@
 // another page as its effect, so the generated code waits for it.
 //
 // `target` is { tag, role?, name?, text?, selectors: [candidate] } where a
-// candidate is { kind, syntax, value, count, unique, aria? } (see selectors.js).
+// candidate is { kind, syntax, value, count, unique, aria? } (see selectors.ts).
 // A step may also carry `selector`, a string the person typed over the
 // generated one.
 

@@ -4,7 +4,7 @@
 //     { v: 1, type: "<feature>/<name>", ...payload }
 //
 // and the reply is `{ ok: true, ...data }` or `{ ok: false, error: "..." }`.
-// The background routes by `type` (src/background/router.js); a feature adds
+// The background routes by `type` (src/background/router.ts); a feature adds
 // types by calling `registerHandler(type, handler, from)` from its background
 // module, where `from` says who may send it: "ui" (an extension page), "content"
 // (a content script) or "any".
@@ -12,6 +12,7 @@
 // Types are written here so the sender and the receiver cannot drift apart.
 
 import type { Fingerprint, PageProbe } from "./fingerprint.ts";
+import { isRecord } from "./guards.ts";
 import type { PickResult } from "./pickview.ts";
 import type { Step } from "./steps.ts";
 
@@ -54,6 +55,11 @@ export interface Message {
   v: typeof PROTOCOL_VERSION;
   type: string;
   [field: string]: unknown;
+}
+
+/** Whether `value` is a message of this protocol version; the fields beyond `type` are still unchecked. */
+export function isMessage(value: unknown): value is Message {
+  return isRecord(value) && value.v === PROTOCOL_VERSION && typeof value.type === "string";
 }
 
 /** A message with the protocol version. */

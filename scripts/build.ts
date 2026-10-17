@@ -311,7 +311,7 @@ async function buildTarget(name: string, browser: Browser, features: Feature[], 
   // One background bundle: the router, then every feature's background module.
   const gen = join(outRoot, ".gen");
   mkdirSync(gen, { recursive: true });
-  const imports = [join(SRC, "background", "index.js"), ...mine.filter((f) => f.background).map((f) => join(f.dir, f.background as string))];
+  const imports = [join(SRC, "background", "index.ts"), ...mine.filter((f) => f.background).map((f) => join(f.dir, f.background as string))];
   const entry = join(gen, `background-${name}.js`);
   writeFileSync(entry, imports.map((p) => `import ${JSON.stringify(p)};`).join("\n") + "\n");
   await bundle(entry, dir, name, "background.js");
