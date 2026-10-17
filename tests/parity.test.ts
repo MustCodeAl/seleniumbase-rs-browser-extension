@@ -7,15 +7,22 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { basecaseProgram } from "../src/shared/codegen/basecase.js";
-import { cdpProgram } from "../src/shared/codegen/cdp.js";
-import { step, targetOf } from "../src/shared/steps.js";
+import { basecaseProgram } from "../src/shared/codegen/basecase.ts";
+import { cdpProgram } from "../src/shared/codegen/cdp.ts";
+import { type Step, step, targetOf } from "../src/shared/steps.ts";
 
-const golden = (name) => readFileSync(join(import.meta.dir, "golden", name), "utf8");
-const actions = JSON.parse(golden("parity-actions.json"));
+/** One action of tests/golden/parity-actions.json, as `ActionRecorder::record` takes it. */
+interface Action {
+  name: string;
+  target: string;
+  value?: string;
+}
 
-const on = (a) => ({ target: targetOf(a.target) });
-const TO_STEP = {
+const golden = (name: string) => readFileSync(join(import.meta.dir, "golden", name), "utf8");
+const actions = JSON.parse(golden("parity-actions.json")) as Action[];
+
+const on = (a: Action) => ({ target: targetOf(a.target) });
+const TO_STEP: Record<string, (a: Action) => Step> = {
   open: (a) => step("navigate", { url: a.target }),
   click: (a) => step("click", on(a)),
   type_text: (a) => step("change", { ...on(a), value: a.value }),

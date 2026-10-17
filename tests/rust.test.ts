@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { commentText, envName, fnIdent, rustStr, testIdent } from "../src/shared/rust.js";
+import { commentText, envName, fnIdent, rustStr, testIdent } from "../src/shared/rust.ts";
 
 describe("rustStr", () => {
   test("plain text", () => {

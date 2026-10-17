@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { acceptLanguages, toFingerprint } from "../src/shared/fingerprint.js";
+import { type PageProbe, acceptLanguages, toFingerprint } from "../src/shared/fingerprint.ts";
+import { must } from "./support.ts";
 
-const probe = {
+const probe: PageProbe = {
   navigator: {
     webdriver: false,
     userAgent:
@@ -62,7 +63,7 @@ describe("toFingerprint", () => {
   });
 
   test("navigator fields", () => {
-    expect(fp.user_agent).toBe(probe.navigator.userAgent);
+    expect(fp.user_agent).toBe(must(probe.navigator?.userAgent));
     expect(fp.platform).toBe("MacIntel");
     expect(fp.hardware_concurrency).toBe(8);
     expect(fp.device_memory).toBe(8);
@@ -87,17 +88,17 @@ describe("toFingerprint", () => {
   });
 
   test("client hints", () => {
-    expect(fp.client_hints.platform).toBe("macOS");
-    expect(fp.client_hints.brands[0]).toEqual({ brand: "Chromium", version: "155" });
-    expect(fp.client_hints.full_version_list[0].version).toBe("155.0.8059.40");
-    expect(fp.client_hints.platform_version).toBe("15.0.0");
-    expect(fp.client_hints.architecture).toBe("arm");
-    expect(fp.client_hints.bitness).toBe("64");
-    expect(fp.client_hints.ua_full_version).toBe("155.0.8059.40");
-    expect(fp.client_hints.mobile).toBe(false);
-    expect(fp.client_hints.wow64).toBe(false);
-    expect(fp.client_hints.form_factors).toEqual(["Desktop"]);
-    expect(fp.client_hints.model).toBe("");
+    expect(fp.client_hints?.platform).toBe("macOS");
+    expect(fp.client_hints?.brands[0]).toEqual({ brand: "Chromium", version: "155" });
+    expect(fp.client_hints?.full_version_list[0]?.version).toBe("155.0.8059.40");
+    expect(fp.client_hints?.platform_version).toBe("15.0.0");
+    expect(fp.client_hints?.architecture).toBe("arm");
+    expect(fp.client_hints?.bitness).toBe("64");
+    expect(fp.client_hints?.ua_full_version).toBe("155.0.8059.40");
+    expect(fp.client_hints?.mobile).toBe(false);
+    expect(fp.client_hints?.wow64).toBe(false);
+    expect(fp.client_hints?.form_factors).toEqual(["Desktop"]);
+    expect(fp.client_hints?.model).toBe("");
   });
 
   test("media devices", () => {

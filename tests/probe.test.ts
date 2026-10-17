@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { probePage } from "../src/inspector/probe.js";
-import { toFingerprint } from "../src/shared/fingerprint.js";
+import { probePage } from "../src/inspector/probe.ts";
+import { toFingerprint } from "../src/shared/fingerprint.ts";
 
 // probePage runs in a page; here there is no document, window or screen at all,
 // which is the worst case: every probe must fail soft.

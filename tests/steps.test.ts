@@ -1,29 +1,34 @@
 import { describe, expect, test } from "bun:test";
 import {
+  type FieldInfo,
+  type Step,
+  type Target,
   appendStep,
   editStep,
   isSensitiveField,
+  markNavigation,
   pickSelector,
   sanitizeStep,
   shouldRecordNavigation,
   step,
   targetOf,
-} from "../src/shared/steps.js";
+} from "../src/shared/steps.ts";
+import { must } from "./support.ts";
 
-const click = (selector) => step("click", { target: targetOf(selector) });
-const change = (selector, value) => step("change", { target: targetOf(selector), value });
+const click = (selector: string) => step("click", { target: targetOf(selector) });
+const change = (selector: string, value: string) => step("change", { target: targetOf(selector), value });
 
 describe("targetOf", () => {
   test("infers the syntax", () => {
-    expect(targetOf("#go").selectors[0].syntax).toBe("css");
-    expect(targetOf("//a").selectors[0].syntax).toBe("xpath");
-    expect(targetOf("link=Home").selectors[0].syntax).toBe("link");
+    expect(targetOf("#go").selectors[0]?.syntax).toBe("css");
+    expect(targetOf("//a").selectors[0]?.syntax).toBe("xpath");
+    expect(targetOf("link=Home").selectors[0]?.syntax).toBe("link");
   });
 });
 
 describe("pickSelector", () => {
   test("first engine-usable candidate", () => {
-    const target = {
+    const target: Target = {
       selectors: [
         { kind: "role-name", syntax: "aria", value: 'Go[role="button"]', unique: true },
         { kind: "id", syntax: "css", value: "#go", unique: true },
@@ -43,30 +48,30 @@ describe("pickSelector", () => {
 
 describe("appendStep", () => {
   test("adds ids and keeps order", () => {
-    let steps = [];
+    let steps: Step[] = [];
     steps = appendStep(steps, click("#a"));
     steps = appendStep(steps, click("#b"));
-    expect(steps.map((s) => s.target.selectors[0].value)).toEqual(["#a", "#b"]);
+    expect(steps.map((s) => s.target?.selectors[0]?.value)).toEqual(["#a", "#b"]);
     expect(new Set(steps.map((s) => s.id)).size).toBe(2);
   });
 
   test("typing in one field becomes one step", () => {
-    let steps = [];
+    let steps: Step[] = [];
     steps = appendStep(steps, change("#q", "he"));
     steps = appendStep(steps, change("#q", "hello"));
     expect(steps).toHaveLength(1);
-    expect(steps[0].value).toBe("hello");
+    expect(steps[0]?.value).toBe("hello");
   });
 
   test("typing in two fields stays two steps", () => {
-    let steps = [];
+    let steps: Step[] = [];
     steps = appendStep(steps, change("#a", "1"));
     steps = appendStep(steps, change("#b", "2"));
     expect(steps).toHaveLength(2);
   });
 
   test("a double click replaces its two clicks", () => {
-    let steps = [];
+    let steps: Step[] = [];
     steps = appendStep(steps, click("#other"));
     steps = appendStep(steps, click("#row"));
     steps = appendStep(steps, click("#row"));
@@ -75,15 +80,15 @@ describe("appendStep", () => {
   });
 
   test("scrolls collapse", () => {
-    let steps = [];
+    let steps: Step[] = [];
     steps = appendStep(steps, step("scroll", { x: 0, y: 100 }));
     steps = appendStep(steps, step("scroll", { x: 0, y: 400 }));
     expect(steps).toHaveLength(1);
-    expect(steps[0].y).toBe(400);
+    expect(steps[0]?.y).toBe(400);
   });
 
   test("the same navigation twice is one step", () => {
-    let steps = [];
+    let steps: Step[] = [];
     steps = appendStep(steps, step("navigate", { url: "https://a.test/" }));
     steps = appendStep(steps, step("navigate", { url: "https://a.test/" }));
     expect(steps).toHaveLength(1);
@@ -100,19 +105,29 @@ describe("appendStep", () => {
 describe("editStep", () => {
   test("patches a step by id", () => {
     let steps = appendStep([], change("#q", "a"));
-    steps = editStep(steps, steps[0].id, { value: "b" });
-    expect(steps[0].value).toBe("b");
+    steps = editStep(steps, must(steps[0]?.id), { value: "b" });
+    expect(steps[0]?.value).toBe("b");
+  });
+
+  test("takes text for the text fields and numbers for the numbers, and ignores the rest", () => {
+    let steps = appendStep([], change("#q", "a"));
+    steps = editStep(steps, must(steps[0]?.id), { value: 5, x: "7", offsetY: 3, selector: ".ok", type: "eval" });
+    expect(steps[0]?.value).toBe("a");
+    expect(steps[0]?.x).toBeUndefined();
+    expect(steps[0]?.offsetY).toBe(3);
+    expect(steps[0]?.selector).toBe(".ok");
+    expect(steps[0]?.type).toBe("change");
   });
 
   test("never turns a sensitive step into one with a value", () => {
     let steps = appendStep([], step("change", { target: targetOf("#pw"), value: "", sensitive: true, secret: "password" }));
-    steps = editStep(steps, steps[0].id, { value: "hunter2" });
-    expect(steps[0].value).toBe("");
+    steps = editStep(steps, must(steps[0]?.id), { value: "hunter2" });
+    expect(steps[0]?.value).toBe("");
   });
 });
 
 describe("shouldRecordNavigation", () => {
-  const nav = (url, at) => step("navigate", { url, t: at });
+  const nav = (url: string, at: number) => step("navigate", { url, t: at });
   test("the first page", () => {
     expect(shouldRecordNavigation([], { url: "https://a.test/", now: 1000 })).toBe(true);
   });
@@ -138,7 +153,7 @@ describe("shouldRecordNavigation", () => {
 });
 
 describe("isSensitiveField", () => {
-  test.each([
+  test.each<[FieldInfo, string]>([
     [{ type: "password" }, "password"],
     [{ type: "text", autocomplete: "cc-number" }, "card_number"],
     [{ type: "text", autocomplete: "cc-csc" }, "card_cvc"],
@@ -153,11 +168,13 @@ describe("isSensitiveField", () => {
     expect(result.label).toBe(label);
   });
 
-  test.each([
+  test.each<[FieldInfo]>([
     [{ type: "text", name: "email" }],
     [{ type: "search", name: "q" }],
     [{ type: "text", name: "username", autocomplete: "username" }],
     [{ type: "text", name: "first_name" }],
+    // A property of every object is not an autocomplete token.
+    [{ type: "text", autocomplete: "constructor" }],
   ])("%j is not", (info) => {
     expect(isSensitiveField(info).sensitive).toBe(false);
   });
@@ -165,12 +182,14 @@ describe("isSensitiveField", () => {
 
 describe("sanitizeStep", () => {
   test("keeps known fields and drops the rest", () => {
-    const clean = sanitizeStep({ type: "click", target: { tag: "a", selectors: [{ kind: "id", syntax: "css", value: "#x", count: 1 }], evil: 1 }, offsetX: 3, __proto__: { bad: 1 }, extra: "no" });
+    const clean = must(
+      sanitizeStep({ type: "click", target: { tag: "a", selectors: [{ kind: "id", syntax: "css", value: "#x", count: 1 }], evil: 1 }, offsetX: 3, __proto__: { bad: 1 }, extra: "no" }),
+    );
     expect(clean.type).toBe("click");
-    expect(clean.target.selectors[0].value).toBe("#x");
+    expect(clean.target?.selectors[0]?.value).toBe("#x");
     expect(clean.offsetX).toBe(3);
     expect("extra" in clean).toBe(false);
-    expect("evil" in clean.target).toBe(false);
+    expect("evil" in must(clean.target)).toBe(false);
   });
   test("rejects unknown types and non-objects", () => {
     expect(sanitizeStep({ type: "eval" })).toBeNull();
@@ -178,34 +197,33 @@ describe("sanitizeStep", () => {
     expect(sanitizeStep("click")).toBeNull();
   });
   test("a sensitive step has no value", () => {
-    const clean = sanitizeStep({ type: "change", value: "hunter2", sensitive: true, secret: "password" });
+    const clean = must(sanitizeStep({ type: "change", value: "hunter2", sensitive: true, secret: "password" }));
     expect(clean.value).toBe("");
     expect(clean.sensitive).toBe(true);
   });
   test("bounds the size of text and lists", () => {
-    const clean = sanitizeStep({ type: "setFiles", names: Array.from({ length: 50 }, () => "x".repeat(1000)), value: "v".repeat(50000) });
+    const clean = must(sanitizeStep({ type: "setFiles", names: Array.from({ length: 50 }, () => "x".repeat(1000)), value: "v".repeat(50000) }));
     expect(clean.names).toHaveLength(20);
-    expect(clean.names[0]).toHaveLength(255);
+    expect(clean.names?.[0]).toHaveLength(255);
     expect(clean.value).toHaveLength(10000);
   });
   test("ignores selectors with an unknown syntax", () => {
-    const clean = sanitizeStep({ type: "click", target: { selectors: [{ syntax: "js", value: "alert(1)" }, { syntax: "css", value: "#ok" }] } });
-    expect(clean.target.selectors.map((c) => c.value)).toEqual(["#ok"]);
+    const clean = must(sanitizeStep({ type: "click", target: { selectors: [{ syntax: "js", value: "alert(1)" }, { syntax: "css", value: "#ok" }] } }));
+    expect(must(clean.target).selectors.map((c) => c.value)).toEqual(["#ok"]);
   });
   test("numbers must be numbers", () => {
-    const clean = sanitizeStep({ type: "scroll", x: "0); evil(", y: 5 });
+    const clean = must(sanitizeStep({ type: "scroll", x: "0); evil(", y: 5 }));
     expect("x" in clean).toBe(false);
     expect(clean.y).toBe(5);
   });
 });
 
 describe("markNavigation", () => {
-  const { markNavigation } = require("../src/shared/steps.js");
   test("flags the step that caused the page", () => {
     const steps = [{ ...click("#go"), t: 4000 }];
     const marked = markNavigation(steps, { nav: "navigate", now: 5000 });
-    expect(marked[0].navigates).toBe(true);
-    expect(steps[0].navigates).toBeUndefined();
+    expect(marked[0]?.navigates).toBe(true);
+    expect(steps[0]?.navigates).toBeUndefined();
   });
   test("not a step long before", () => {
     const steps = [{ ...click("#go"), t: 1000 }];
@@ -220,7 +238,7 @@ describe("markNavigation", () => {
     expect(markNavigation(once, { now: 5100 })).toBe(once);
   });
   test("sanitizeStep keeps the flag", () => {
-    expect(sanitizeStep({ type: "click", navigates: true }).navigates).toBe(true);
-    expect(sanitizeStep({ type: "click", navigates: "yes" }).navigates).toBeUndefined();
+    expect(must(sanitizeStep({ type: "click", navigates: true })).navigates).toBe(true);
+    expect(must(sanitizeStep({ type: "click", navigates: "yes" })).navigates).toBeUndefined();
   });
 });

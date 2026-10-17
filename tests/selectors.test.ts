@@ -1,16 +1,18 @@
 import { describe, expect, test } from "bun:test";
 import {
+  type GeneratedSelectors,
   accessibleName,
   generateSelectors,
   looksGenerated,
   roleOf,
   selectorSyntax,
-} from "../src/shared/selectors.js";
-import { cssEscape, cssString, normalizeSpace, xpathLiteral } from "../src/shared/escape.js";
-import { dom } from "./dom.js";
+} from "../src/shared/selectors.ts";
+import { cssEscape, cssString, normalizeSpace, xpathLiteral } from "../src/shared/escape.ts";
+import { dom, nth } from "./dom.ts";
+import { must } from "./support.ts";
 
-const values = (result) => result.candidates.map((c) => c.value);
-const first = (result) => result.best.value;
+const values = (result: GeneratedSelectors) => result.candidates.map((c) => c.value);
+const first = (result: GeneratedSelectors) => must(result.best, "a best selector").value;
 
 describe("generated-looking tokens", () => {
   test.each([
@@ -66,7 +68,7 @@ describe("escaping", () => {
 });
 
 describe("selector syntax", () => {
-  test.each([
+  test.each<[string, "css" | "xpath" | "link"]>([
     ["#go", "css"],
     ["button[name='q']", "css"],
     ["//div[@id='b']", "xpath"],
@@ -84,8 +86,8 @@ describe("preference order", () => {
     const { $, document } = dom(`<button id="go" name="n" data-testid="submit-order">Order</button>`);
     const result = generateSelectors($("button"), { document });
     expect(first(result)).toBe('[data-testid="submit-order"]');
-    expect(result.candidates[0].kind).toBe("testid");
-    expect(result.candidates[0].count).toBe(1);
+    expect(result.candidates[0]?.kind).toBe("testid");
+    expect(result.candidates[0]?.count).toBe(1);
   });
 
   test("data-test and data-qa are also test ids", () => {
@@ -119,32 +121,34 @@ describe("preference order", () => {
     expect(kinds.indexOf("role-name")).toBeGreaterThan(-1);
     expect(kinds.indexOf("role-name")).toBeLessThan(kinds.indexOf("css"));
     const role = result.candidates.find((c) => c.kind === "role-name");
-    expect(role.syntax).toBe("xpath");
-    expect(role.value).toBe('//button[normalize-space(.)="Sign in"]');
-    expect(role.count).toBe(1);
-    expect(role.aria).toBe('Sign in[role="button"]');
+    expect(role?.syntax).toBe("xpath");
+    expect(role?.value).toBe('//button[normalize-space(.)="Sign in"]');
+    expect(role?.count).toBe(1);
+    expect(role?.aria).toBe('Sign in[role="button"]');
   });
 
   test("short stable css when nothing else is unique", () => {
-    const { $, document } = dom(`<ul class="menu"><li class="item"><a href="#"> </a></li><li class="item"><a href="#"> </a></li></ul>`);
-    const el = document.querySelectorAll("li")[1];
+    const { document } = dom(`<ul class="menu"><li class="item"><a href="#"> </a></li><li class="item"><a href="#"> </a></li></ul>`);
+    const el = nth(document, "li", 1);
     const result = generateSelectors(el, { document });
     expect(result.best).not.toBeNull();
-    expect(result.best.count).toBe(1);
-    expect(document.querySelectorAll(result.best.value)).toHaveLength(1);
-    expect(document.querySelector(result.best.value)).toBe(el);
+    const best = must(result.best);
+    expect(best.count).toBe(1);
+    expect(document.querySelectorAll(best.value)).toHaveLength(1);
+    expect(document.querySelector(best.value)).toBe(el);
   });
 });
 
 describe("uniqueness", () => {
   test("a duplicated id is not used", () => {
     const { document } = dom(`<input id="dup"><input id="dup">`);
-    const second = document.querySelectorAll("input")[1];
+    const second = nth(document, "input", 1);
     const result = generateSelectors(second, { document });
     const id = result.candidates.find((c) => c.kind === "id");
     expect(id === undefined || id.unique === false).toBe(true);
-    expect(result.best.count).toBe(1);
-    expect(result.best.value).not.toBe("#dup");
+    const best = must(result.best);
+    expect(best.count).toBe(1);
+    expect(best.value).not.toBe("#dup");
   });
 
   test("every candidate that claims to be unique matches exactly one element", () => {
@@ -175,13 +179,13 @@ describe("uniqueness", () => {
 
   test("an absolute xpath is always available and unique", () => {
     const { document } = dom(`<div><span></span><span></span></div>`);
-    const el = document.querySelectorAll("span")[1];
+    const el = nth(document, "span", 1);
     const result = generateSelectors(el, { document });
     const xpath = result.candidates.find((c) => c.kind === "xpath");
     expect(xpath).toBeDefined();
-    expect(xpath.syntax).toBe("xpath");
-    expect(xpath.unique).toBe(true);
-    expect(xpath.value.startsWith("/")).toBe(true);
+    expect(xpath?.syntax).toBe("xpath");
+    expect(xpath?.unique).toBe(true);
+    expect(xpath?.value.startsWith("/")).toBe(true);
   });
 });
 
@@ -210,8 +214,8 @@ describe("hostile values", () => {
     const { $, document } = dom(`<input name='say "hi" it&#39;s'><input name="c:\\temp">`);
     const quoted = generateSelectors($("input"), { document });
     expect(document.querySelector(first(quoted))).toBe($("input"));
-    const slash = generateSelectors(document.querySelectorAll("input")[1], { document });
-    expect(document.querySelector(first(slash))).toBe(document.querySelectorAll("input")[1]);
+    const slash = generateSelectors(nth(document, "input", 1), { document });
+    expect(document.querySelector(first(slash))).toBe(nth(document, "input", 1));
   });
 
   test("an id with a dot is matched through an attribute or an escape", () => {
@@ -255,8 +259,8 @@ describe("anchors", () => {
     const { $, document } = dom(`<a href="/pricing">Pricing</a><a href="/docs">Docs</a>`);
     const result = generateSelectors($("a"), { document });
     const link = result.candidates.find((c) => c.kind === "link-text");
-    expect(link.value).toBe("link=Pricing");
-    expect(link.syntax).toBe("link");
-    expect(link.count).toBe(1);
+    expect(link?.value).toBe("link=Pricing");
+    expect(link?.syntax).toBe("link");
+    expect(link?.count).toBe(1);
   });
 });

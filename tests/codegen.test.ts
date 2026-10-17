@@ -1,14 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import { generate } from "../src/shared/codegen/index.js";
-import { cdpProgram, cdpStatements } from "../src/shared/codegen/cdp.js";
-import { basecaseProgram, basecaseStatements } from "../src/shared/codegen/basecase.js";
-import { fromReplay, toReplay } from "../src/shared/codegen/replay.js";
-import { callsFor } from "../src/shared/calls.js";
-import { step, targetOf } from "../src/shared/steps.js";
+import { type ExportFormat, generate } from "../src/shared/codegen/index.ts";
+import { cdpProgram, cdpStatements } from "../src/shared/codegen/cdp.ts";
+import { basecaseProgram, basecaseStatements } from "../src/shared/codegen/basecase.ts";
+import { fromReplay, toReplay } from "../src/shared/codegen/replay.ts";
+import { callsFor } from "../src/shared/calls.ts";
+import { type Step, step, targetOf } from "../src/shared/steps.ts";
+import { must } from "./support.ts";
 
-const on = (selector) => ({ target: targetOf(selector) });
+const on = (selector: string) => ({ target: targetOf(selector) });
 
-const flow = [
+const flow: Step[] = [
   step("navigate", { url: "https://example.com/" }),
   step("click", on("#go")),
   step("change", { ...on("#q"), value: "hello" }),
@@ -134,7 +135,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   });
 
   test("scroll numbers come from numbers", () => {
-    expect(cdpStatements(step("scroll", { x: "0); evil(", y: 1 })).lines[0]).toStartWith("// skipped:");
+    // Not a number on purpose: text that reaches a step from outside must never become code.
+    const notANumber = "0); evil(" as unknown as number;
+    expect(cdpStatements(step("scroll", { x: notANumber, y: 1 })).lines[0]).toStartWith("// skipped:");
   });
 });
 
@@ -182,7 +185,7 @@ async fn recorded_test() -> Result<(), Box<dyn std::error::Error>> {
 
 describe("DevTools Recorder JSON", () => {
   test("shape of @puppeteer/replay", () => {
-    const withAria = {
+    const withAria: Partial<Omit<Step, "type">> = {
       target: {
         tag: "button",
         selectors: [
@@ -237,8 +240,8 @@ describe("DevTools Recorder JSON", () => {
     );
     const types = replay.steps.map((s) => s.type);
     expect(types).toEqual(["setViewport", "change", "click", "doubleClick", "change", "scroll"]);
-    expect(replay.steps[1].value).toBe("g");
-    expect(replay.steps[4].value).toBe("");
+    expect(replay.steps[1]?.value).toBe("g");
+    expect(replay.steps[4]?.value).toBe("");
     expect(JSON.stringify(replay)).not.toContain("hunter2");
   });
 });
@@ -280,8 +283,8 @@ describe("from a DevTools recording", () => {
       "unsupported",
     ]);
     expect(pickOf(steps[2])).toBe("#go");
-    expect(steps[3].value).toBe("alice");
-    expect(steps[4].key).toBe("Enter");
+    expect(steps[3]?.value).toBe("alice");
+    expect(steps[4]?.key).toBe("Enter");
   });
 
   test("the pure CDP export of a recording", () => {
@@ -311,9 +314,17 @@ describe("from a DevTools recording", () => {
     expect(pickOf(steps[0])).toBe('//*[@role="button" and (@aria-label="Sign in" or normalize-space(.)="Sign in")]');
   });
 
+  test("a recording of any shape reads as steps or as nothing", () => {
+    expect(fromReplay(undefined)).toEqual([]);
+    expect(fromReplay({ steps: "no" })).toEqual([]);
+    const steps = fromReplay({ steps: [null, 5, { type: "click", target: "main", selectors: [["#a"]] }] });
+    expect(steps.map((s) => s.type)).toEqual(["unsupported", "unsupported", "click"]);
+    expect(steps[0]?.description).toContain("(unnamed)");
+  });
+
   test("a step in another frame or tab is skipped, not guessed", () => {
     const steps = fromReplay({ steps: [{ type: "click", target: "main", frame: [0], selectors: [["#in-frame"]], offsetX: 1, offsetY: 1 }] });
-    expect(steps[0].type).toBe("unsupported");
+    expect(steps[0]?.type).toBe("unsupported");
   });
 });
 
@@ -327,11 +338,12 @@ describe("generate()", () => {
     const json = generate("devtools", flow, { name: "My Flow" });
     expect(json.filename).toBe("my_flow.json");
     expect(json.mime).toBe("application/json");
-    expect(JSON.parse(json.text).title).toBe("My Flow");
+    expect((JSON.parse(json.text) as { title: string }).title).toBe("My Flow");
   });
 
   test("an unknown format is an error", () => {
-    expect(() => generate("nope", flow, {})).toThrow();
+    // Not a format on purpose.
+    expect(() => generate("nope" as unknown as ExportFormat, flow, {})).toThrow();
   });
 });
 
@@ -340,29 +352,29 @@ describe("ready-to-copy calls", () => {
     const calls = callsFor("#go", { tag: "button", text: "Order now" });
     const labels = calls.map((c) => c.label);
     expect(labels).toContain("click");
-    const click = calls.find((c) => c.label === "click");
+    const click = must(calls.find((c) => c.label === "click"));
     expect(click.cdp).toBe('page.locator("#go").click().await?;');
     expect(click.basecase).toBe('sb.click("#go").await?;');
-    const text = calls.find((c) => c.label === "assert text");
+    const text = must(calls.find((c) => c.label === "assert text"));
     expect(text.cdp).toBe('page.locator("#go").expect().to_contain_text("Order now").await?;');
     expect(text.basecase).toBe('sb.assert_text("Order now", "#go").await?;');
   });
 
   test("a text field and a select", () => {
     const field = callsFor("#q", { tag: "input", inputType: "text" });
-    expect(field.find((c) => c.label === "type").cdp).toBe('page.locator("#q").type_text("").await?;');
+    expect(must(field.find((c) => c.label === "type")).cdp).toBe('page.locator("#q").type_text("").await?;');
     const select = callsFor("#c", { tag: "select" });
-    expect(select.find((c) => c.label === "select").cdp).toBe('page.locator("#c").select_option(SelectBy::Text("")).await?;');
+    expect(must(select.find((c) => c.label === "select")).cdp).toBe('page.locator("#c").select_option(SelectBy::Text("")).await?;');
   });
 
   test("a selector with quotes", () => {
     const calls = callsFor('a[title="x"]', { tag: "a" });
-    expect(calls[0].cdp).toContain('page.locator("a[title=\\"x\\"]")');
+    expect(calls[0]?.cdp).toContain('page.locator("a[title=\\"x\\"]")');
   });
 });
 
-function pickOf(s) {
-  return s.selector ?? s.target.selectors.find((c) => c.syntax !== "aria")?.value;
+function pickOf(s: Step | undefined): string | undefined {
+  return s?.selector ?? s?.target?.selectors.find((c) => c.syntax !== "aria")?.value;
 }
 
 describe("a step that loads a page", () => {
@@ -375,15 +387,15 @@ describe("a step that loads a page", () => {
   });
   test("the DevTools Recorder JSON says it caused a navigation", () => {
     const replay = toReplay([loads, { ...step("keyPress", { key: "Enter" }), navigates: true }], { title: "t" });
-    expect(replay.steps[1].assertedEvents).toEqual([{ type: "navigation" }]);
-    expect(replay.steps[2].assertedEvents).toEqual([{ type: "navigation" }]);
+    expect(replay.steps[1]?.assertedEvents).toEqual([{ type: "navigation" }]);
+    expect(replay.steps[2]?.assertedEvents).toEqual([{ type: "navigation" }]);
   });
   test("a Recorder step that caused a navigation round-trips", () => {
     const steps = fromReplay({
       steps: [{ type: "click", target: "main", selectors: [["#go"]], offsetX: 1, offsetY: 1, assertedEvents: [{ type: "navigation", url: "https://x.test/", title: "" }] }],
     });
-    expect(steps[0].navigates).toBe(true);
-    expect(cdpStatements(steps[0]).lines[1]).toBe("page.wait_for_load().await?;");
+    expect(steps[0]?.navigates).toBe(true);
+    expect(cdpStatements(must(steps[0])).lines[1]).toBe("page.wait_for_load().await?;");
   });
   test("a navigate step needs no extra wait", () => {
     expect(cdpStatements({ ...step("navigate", { url: "https://x.test/" }), navigates: true }).lines).toEqual(['page.goto("https://x.test/").await?;']);
