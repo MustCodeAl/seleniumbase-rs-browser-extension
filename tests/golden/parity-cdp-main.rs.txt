@@ -6,7 +6,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let page = browser.default_page().await?;
     page.goto("https://example.com/a?b=1&c=\"d\"").await?;
     page.locator("#go").click().await?;
-    page.locator("input[name=\"q\"]").clear().await?;
     page.locator("input[name=\"q\"]").type_text("hello \"world\"\\n\nsecond line").await?;
     page.locator("#color").select_option(SelectBy::Text("Green")).await?;
     page.locator("#agree").check().await?;
@@ -14,7 +13,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     page.locator("//div[@id=\"row\"]").double_click().await?;
     page.locator("[data-testid=\"menu\"]").hover().await?;
     page.locator("link=Sign in").click().await?;
-    page.locator("#q").clear().await?;
     page.locator("#q").type_text("tab\there \u{202e} bidi \0 nul \u{1b} esc").await?;
     browser.close().await?;
     Ok(())

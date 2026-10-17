@@ -29,7 +29,6 @@ async fn recorded_test() -> Result<(), Box<dyn std::error::Error>> {
     let page = browser.default_page().await?;
     page.goto("https://example.com/").await?;
     page.locator("#go").click().await?;
-    page.locator("#q").clear().await?;
     page.locator("#q").type_text("hello").await?;
     page.locator("#color").select_option(SelectBy::Text("Green")).await?;
     page.locator("#agree").check().await?;
@@ -85,6 +84,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for (const line of text.split("\n")) {
       expect(line.trimStart().startsWith("std::process")).toBe(false);
     }
+  });
+
+  // `Locator::type_text` empties the field before it types (as `BaseCase::type_text` does),
+  // so a clear() before it is a second round trip that does nothing.
+  test("typing is one type_text call, which clears the field first", () => {
+    expect(cdpStatements(step("change", { ...on("#q"), value: "hello" })).lines).toEqual(['page.locator("#q").type_text("hello").await?;']);
+    expect(cdpStatements(step("change", { ...on("#q"), value: "" })).lines).toEqual(['page.locator("#q").type_text("").await?;']);
+    const secret = cdpStatements(step("change", { ...on("#pw"), value: "", sensitive: true, secret: "password" })).lines;
+    expect(secret).toEqual([
+      "// the value of this field was not recorded: set RECORDED_PASSWORD",
+      'page.locator("#pw").type_text(std::env::var("RECORDED_PASSWORD").unwrap_or_default()).await?;',
+    ]);
   });
 
   test("a sensitive field reads its value from the environment", () => {

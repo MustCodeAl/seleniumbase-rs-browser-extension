@@ -250,7 +250,6 @@ async fn records_exports_and_replays_in_chrome() {
     assert_eq!(cdp["filename"], json!("e2e_flow.rs"));
     for expected in [
         &format!("page.goto(\"{}\").await?;", server.url("/")),
-        "page.locator(\"#email\").clear().await?;",
         "page.locator(\"#email\").type_text(\"alice@example.com\").await?;",
         "// the value of this field was not recorded: set RECORDED_PASSWORD",
         "page.locator(\"#pw\").type_text(std::env::var(\"RECORDED_PASSWORD\").unwrap_or_default()).await?;",
@@ -264,6 +263,11 @@ async fn records_exports_and_replays_in_chrome() {
         assert!(cdp_text.contains(expected), "missing {expected}\n{cdp_text}");
     }
     assert!(!cdp_text.contains("hunter2"));
+    // `Locator::type_text` empties the field first, so the export does not clear it as well.
+    assert!(
+        !cdp_text.contains(".clear()"),
+        "a field is cleared before type_text\n{cdp_text}"
+    );
     let basecase = ext
         .ok(
             "recorder/export",

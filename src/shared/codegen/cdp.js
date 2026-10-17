@@ -48,10 +48,11 @@ export function cdpStatements(s) {
       break;
     case "change":
       if (needTarget()) {
-        lines.push(`${loc}.clear().await?;`);
+        // `Locator::type_text` empties the field and then types, as `BaseCase::type_text`
+        // does (ActionRecorder::to_cdp_script writes it alone), so nothing clears it first.
         if (s.sensitive) {
           const { variable, comment } = secretNote(s);
-          lines.unshift(comment);
+          lines.push(comment);
           lines.push(`${loc}.type_text(std::env::var(${rustStr(variable)}).unwrap_or_default()).await?;`);
         } else {
           lines.push(`${loc}.type_text(${rustStr(s.value ?? "")}).await?;`);
