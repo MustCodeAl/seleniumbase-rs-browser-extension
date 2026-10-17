@@ -8,30 +8,56 @@
 // only values a page can read without asking the person (no camera, microphone
 // or location prompt, no device labels).
 
-export async function probePage() {
-  const safe = (read, fallback = null) => {
+import type {
+  PageProbe,
+  ProbeHeadless,
+  ProbeHighEntropy,
+  ProbeNavigator,
+  ProbeUserAgentData,
+  ProbeWebGl,
+} from "../shared/fingerprint.ts";
+
+/** Members of `navigator` that only some browsers have, and lib.dom does not declare. */
+interface NavigatorExtras {
+  deviceMemory?: number;
+  oscpu?: string;
+  buildID?: string;
+  userAgentData?: {
+    brands: readonly { brand: string; version: string }[];
+    mobile: boolean;
+    platform: string;
+    getHighEntropyValues(hints: string[]): Promise<ProbeHighEntropy>;
+  };
+}
+
+/** What `probePage` returns: a page probe that always has the navigator and the headless verdict. */
+export type ProbeReport = PageProbe & { navigator: ProbeNavigator; headless: ProbeHeadless };
+
+export async function probePage(): Promise<ProbeReport> {
+  function safe<T>(read: () => T): Exclude<T, undefined> | null;
+  function safe<T>(read: () => T, fallback: Exclude<T, undefined>): Exclude<T, undefined>;
+  function safe<T>(read: () => T, fallback: Exclude<T, undefined> | null = null): Exclude<T, undefined> | null {
     try {
       const value = read();
-      return value === undefined ? fallback : value;
+      return value === undefined ? fallback : (value as Exclude<T, undefined>);
     } catch {
       return fallback;
     }
-  };
-  const asafe = async (read, fallback = null) => {
+  }
+  const asafe = async <T>(read: () => Promise<T>): Promise<Exclude<T, undefined> | null> => {
     try {
       const value = await read();
-      return value === undefined ? fallback : value;
+      return value === undefined ? null : (value as Exclude<T, undefined>);
     } catch {
-      return fallback;
+      return null;
     }
   };
-  const within = (promise, ms) =>
-    Promise.race([promise, new Promise((resolve) => setTimeout(() => resolve(null), ms))]);
+  const within = <T>(promise: Promise<T>, ms: number): Promise<T | null> =>
+    Promise.race([promise, new Promise<null>((resolve) => setTimeout(() => resolve(null), ms))]);
 
-  const nav = navigator;
-  const result = {};
+  const nav = navigator as Navigator & NavigatorExtras;
 
-  result.navigator = {
+  const navigatorInfo: ProbeNavigator = {
     webdriver: safe(() => nav.webdriver),
     userAgent: safe(() => nav.userAgent),
     language: safe(() => nav.language),
@@ -53,10 +79,10 @@ export async function probePage() {
     buildID: safe(() => nav.buildID),
   };
 
-  result.userAgentData = await asafe(async () => {
+  const userAgentData = await asafe(async () => {
     const data = nav.userAgentData;
     if (!data) return null;
-    const out = {
+    const out: ProbeUserAgentData = {
       brands: Array.from(data.brands, (b) => ({ brand: b.brand, version: b.version })),
       mobile: data.mobile,
       platform: data.platform,
@@ -92,7 +118,7 @@ export async function probePage() {
     return out;
   });
 
-  result.screen = safe(() => ({
+  const screenInfo = safe(() => ({
     width: screen.width,
     height: screen.height,
     availWidth: screen.availWidth,
@@ -100,8 +126,8 @@ export async function probePage() {
     colorDepth: screen.colorDepth,
     pixelDepth: screen.pixelDepth,
   }));
-  result.devicePixelRatio = safe(() => window.devicePixelRatio);
-  result.window = safe(() => ({
+  const devicePixelRatio = safe(() => window.devicePixelRatio);
+  const windowInfo = safe(() => ({
     innerWidth: window.innerWidth,
     innerHeight: window.innerHeight,
     outerWidth: window.outerWidth,
@@ -109,15 +135,16 @@ export async function probePage() {
     screenX: window.screenX,
     screenY: window.screenY,
   }));
-  result.timezone = safe(() => ({
+  const timezone = safe(() => ({
     name: Intl.DateTimeFormat().resolvedOptions().timeZone,
     offsetMinutes: new Date().getTimezoneOffset(),
     locale: Intl.DateTimeFormat().resolvedOptions().locale,
   }));
 
-  result.webgl = safe(() => {
+  const webgl = safe((): ProbeWebGl | null => {
     const canvas = document.createElement("canvas");
-    const gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+    // The legacy context name answers with the same kind of context.
+    const gl = (canvas.getContext("webgl") || canvas.getContext("experimental-webgl")) as WebGLRenderingContext | null;
     if (!gl) return null;
     const debug = gl.getExtension("WEBGL_debug_renderer_info");
     return {
@@ -126,11 +153,11 @@ export async function probePage() {
       version: gl.getParameter(gl.VERSION),
       unmaskedVendor: debug ? gl.getParameter(debug.UNMASKED_VENDOR_WEBGL) : null,
       unmaskedRenderer: debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : null,
-      webgl2: Boolean(canvas.getContext && document.createElement("canvas").getContext("webgl2")),
+      webgl2: Boolean(document.createElement("canvas").getContext("webgl2")),
     };
   });
 
-  result.canvas = await asafe(async () => {
+  const canvasInfo = await asafe(async () => {
     const canvas = document.createElement("canvas");
     canvas.width = 240;
     canvas.height = 60;
@@ -161,41 +188,39 @@ export async function probePage() {
   });
 
   const permissionNames = ["notifications", "geolocation", "camera", "microphone", "clipboard-read", "persistent-storage"];
-  const states = {};
+  const states: Record<string, string | null> = {};
   if (nav.permissions && typeof nav.permissions.query === "function") {
     for (const name of permissionNames) {
       states[name] = await asafe(async () => {
-        const status = await within(nav.permissions.query({ name }), 800);
+        // Browsers answer for more names than lib.dom lists.
+        const status = await within(nav.permissions.query({ name } as PermissionDescriptor), 800);
         return status ? status.state : null;
       });
     }
   }
-  result.permissions = states;
-  result.notificationPermission = safe(() => Notification.permission);
+  const notificationPermission = safe(() => Notification.permission);
 
-  const media = { audioinput: 0, audiooutput: 0, videoinput: 0 };
+  const counts = { audioinput: 0, audiooutput: 0, videoinput: 0 };
   const devices = await asafe(async () =>
     nav.mediaDevices ? await within(nav.mediaDevices.enumerateDevices(), 1500) : null,
   );
   if (devices) {
-    for (const device of devices) if (device.kind in media) media[device.kind] += 1;
-    result.media = media;
-  } else {
-    result.media = null;
+    for (const device of devices) if (device.kind in counts) counts[device.kind] += 1;
   }
+  const media = devices ? counts : null;
 
-  const ua = result.navigator.userAgent || "";
+  const ua = navigatorInfo.userAgent || "";
   const markers = [];
   if (/HeadlessChrome/.test(ua)) markers.push("ua_headless");
-  if (result.navigator.webdriver === true) markers.push("webdriver_true");
+  if (navigatorInfo.webdriver === true) markers.push("webdriver_true");
   if (/Chrome\//.test(ua) && !safe(() => window.chrome)) markers.push("no_window_chrome");
-  if (/Chrome\//.test(ua) && result.navigator.pluginsCount === 0) markers.push("no_plugins");
-  if (Array.isArray(result.navigator.languages) && result.navigator.languages.length === 0) markers.push("no_languages");
-  if (result.window && result.window.outerWidth === 0 && result.window.outerHeight === 0) markers.push("zero_outer_size");
-  if (result.notificationPermission === "denied" && states.notifications === "prompt") {
+  if (/Chrome\//.test(ua) && navigatorInfo.pluginsCount === 0) markers.push("no_plugins");
+  if (Array.isArray(navigatorInfo.languages) && navigatorInfo.languages.length === 0) markers.push("no_languages");
+  if (windowInfo && windowInfo.outerWidth === 0 && windowInfo.outerHeight === 0) markers.push("zero_outer_size");
+  if (notificationPermission === "denied" && states.notifications === "prompt") {
     markers.push("notification_permission_mismatch");
   }
-  const renderer = (result.webgl && (result.webgl.unmaskedRenderer || result.webgl.renderer)) || "";
+  const renderer = (webgl && (webgl.unmaskedRenderer || webgl.renderer)) || "";
   if (/SwiftShader|llvmpipe|Software Renderer/i.test(renderer)) markers.push("software_webgl");
   const globals = safe(() =>
     Object.keys(window).filter((k) => /^\$?cdc_|^__(webdriver|selenium|driver)|^_Selenium_IDE_Recorder$|^callPhantom$|^__nightmare$/i.test(k)),
@@ -203,7 +228,19 @@ export async function probePage() {
   );
   if (globals.length > 0) markers.push("automation_globals");
   const strong = ["ua_headless", "webdriver_true", "zero_outer_size", "notification_permission_mismatch", "automation_globals"];
-  result.headless = { markers, likely: markers.some((m) => strong.includes(m)) };
-  result.url = safe(() => location.href);
-  return result;
+  return {
+    navigator: navigatorInfo,
+    userAgentData,
+    screen: screenInfo,
+    devicePixelRatio,
+    window: windowInfo,
+    timezone,
+    webgl,
+    canvas: canvasInfo,
+    permissions: states,
+    notificationPermission,
+    media,
+    headless: { markers, likely: markers.some((m) => strong.includes(m)) },
+    url: safe(() => location.href),
+  };
 }

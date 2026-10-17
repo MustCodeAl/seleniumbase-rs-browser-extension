@@ -37,14 +37,14 @@ export interface ProbeBrand {
 }
 
 export interface ProbeHighEntropy {
-  architecture?: string;
-  bitness?: string;
-  model?: string;
-  platformVersion?: string;
-  uaFullVersion?: string;
+  architecture?: string | undefined;
+  bitness?: string | undefined;
+  model?: string | undefined;
+  platformVersion?: string | undefined;
+  uaFullVersion?: string | undefined;
   fullVersionList?: ProbeBrand[] | undefined;
-  wow64?: boolean;
-  formFactors?: string[];
+  wow64?: boolean | undefined;
+  formFactors?: string[] | undefined;
 }
 
 export interface ProbeUserAgentData {

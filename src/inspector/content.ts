@@ -5,12 +5,12 @@
 // cancels. Everything is drawn in a closed shadow root, so the page's styles and
 // scripts neither reach the panel nor are changed by it.
 
-import { ext } from "../shared/api.js";
-import { callsFor } from "../shared/calls.js";
-import { h } from "../shared/dom.js";
-import { MSG, message } from "../shared/protocol.js";
-import { copyButton, renderPick } from "../shared/pickview.js";
-import { INTERACTIVE_SELECTOR, generateSelectors } from "../shared/selectors.js";
+import { ext } from "../shared/api.ts";
+import { callsFor } from "../shared/calls.ts";
+import { h } from "../shared/dom.ts";
+import { MSG, type Message, isMessage, message } from "../shared/protocol.ts";
+import { type PickResult, copyButton, renderPick } from "../shared/pickview.ts";
+import { INTERACTIVE_SELECTOR, generateSelectors } from "../shared/selectors.ts";
 
 const CSS = `
 :host { all: initial; }
@@ -33,28 +33,33 @@ button:hover { border-color: #2563eb; }
 .label { flex: none; width: 74px; color: #6b7280; font-size: 12px; }
 `;
 
-function create() {
-  let host = null;
-  let shadow = null;
-  let highlight = null;
-  let tip = null;
-  let panel = null;
-  let picking = false;
-  let hovered = null;
+/** What is drawn on the page: a host element whose closed shadow root holds the highlight, the tip and, after a pick, the panel. */
+interface Overlay {
+  host: HTMLElement;
+  shadow: ShadowRoot;
+  highlight: HTMLDivElement;
+  tip: HTMLDivElement;
+  panel: HTMLDivElement | null;
+}
 
-  const send = (type, payload) => {
+function create(): NonNullable<Window["__sbrsInspector"]> {
+  let overlay: Overlay | null = null;
+  let picking = false;
+  let hovered: Element | null = null;
+
+  const send = (type: string, payload: Record<string, unknown>): Promise<unknown> => {
     try {
-      return ext.runtime.sendMessage(message(type, payload)).catch(() => null);
+      return ext.runtime.sendMessage<Message, unknown>(message(type, payload)).catch(() => null);
     } catch {
       return Promise.resolve(null);
     }
   };
 
-  function ensureHost() {
-    if (host && host.isConnected) return;
-    host = document.createElement("sbrs-inspector");
+  function ensureHost(): Overlay {
+    if (overlay && overlay.host.isConnected) return overlay;
+    const host = document.createElement("sbrs-inspector");
     host.style.cssText = "all:initial;position:fixed;inset:0;z-index:2147483647;pointer-events:none;";
-    shadow = host.attachShadow({ mode: "closed" });
+    const shadow = host.attachShadow({ mode: "closed" });
     try {
       const sheet = new CSSStyleSheet();
       sheet.replaceSync(CSS);
@@ -62,15 +67,17 @@ function create() {
     } catch {
       shadow.append(h("style", { text: CSS }));
     }
-    highlight = h("div", { class: "hl" });
-    tip = h("div", { class: "tip" });
+    const highlight = h("div", { class: "hl" });
+    const tip = h("div", { class: "tip" });
     highlight.hidden = true;
     tip.hidden = true;
     shadow.append(highlight, tip);
     document.documentElement.append(host);
+    overlay = { host, shadow, highlight, tip, panel: null };
+    return overlay;
   }
 
-  function label(el) {
+  function label(el: Element): string {
     const id = el.getAttribute("id");
     const classes = (el.getAttribute("class") || "").split(/\s+/).filter(Boolean).slice(0, 2);
     return el.localName + (id ? `#${id}` : "") + classes.map((c) => `.${c}`).join("");
@@ -78,20 +85,21 @@ function create() {
 
   // The element a pick lands on: the control under the pointer (the button, not the
   // icon inside it). Hold Alt to pick exactly what is under the pointer.
-  function elementAt(x, y, exact) {
+  function elementAt(x: number, y: number, exact: boolean): Element | null {
     const el = document.elementFromPoint(x, y);
-    if (!el || el === host) return null;
+    if (!el || el === overlay?.host) return null;
     if (exact) return el;
-    const control = el.closest ? el.closest(INTERACTIVE_SELECTOR) : null;
+    const control = el.closest(INTERACTIVE_SELECTOR);
     return control ?? el;
   }
 
-  function inside(event) {
-    return typeof event.composedPath === "function" && event.composedPath().includes(host);
+  function inside(event: Event): boolean {
+    return overlay !== null && typeof event.composedPath === "function" && event.composedPath().includes(overlay.host);
   }
 
-  function onMove(event) {
-    if (!picking) return;
+  function onMove(event: MouseEvent): void {
+    if (!picking || !overlay) return;
+    const { highlight, tip } = overlay;
     const el = elementAt(event.clientX, event.clientY, event.altKey);
     hovered = el;
     if (!el) {
@@ -108,13 +116,13 @@ function create() {
   }
 
   // While picking, the page must not see the pointer or the click.
-  function swallow(event) {
+  function swallow(event: Event): void {
     if (!picking || inside(event)) return;
     event.preventDefault();
     event.stopImmediatePropagation();
   }
 
-  function onClick(event) {
+  function onClick(event: MouseEvent): void {
     if (!picking || inside(event)) return;
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -122,7 +130,7 @@ function create() {
     if (el) pick(el);
   }
 
-  function onKey(event) {
+  function onKey(event: KeyboardEvent): void {
     if (event.key !== "Escape") return;
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -133,21 +141,21 @@ function create() {
 
   const POINTER_EVENTS = ["pointerdown", "pointerup", "mousedown", "mouseup", "dblclick", "contextmenu", "auxclick"];
 
-  function listen() {
+  function listen(): void {
     document.addEventListener("mousemove", onMove, true);
     document.addEventListener("click", onClick, true);
     document.addEventListener("keydown", onKey, true);
     for (const type of POINTER_EVENTS) document.addEventListener(type, swallow, true);
   }
 
-  function unlisten() {
+  function unlisten(): void {
     document.removeEventListener("mousemove", onMove, true);
     document.removeEventListener("click", onClick, true);
     document.removeEventListener("keydown", onKey, true);
     for (const type of POINTER_EVENTS) document.removeEventListener(type, swallow, true);
   }
 
-  function describeElement(el) {
+  function describeElement(el: Element): PickResult {
     const generated = generateSelectors(el);
     const best = generated.best;
     const info = { tag: generated.tag, inputType: generated.inputType, text: generated.text };
@@ -166,35 +174,39 @@ function create() {
     };
   }
 
-  function showPanel(result) {
-    if (panel) panel.remove();
+  function showPanel(result: PickResult): void {
+    if (!overlay) return;
+    const o = overlay;
+    if (o.panel) o.panel.remove();
     const again = h("button", { type: "button", text: "Pick another" });
     again.addEventListener("click", () => start());
     const close = h("button", { type: "button", text: "Close" });
     close.addEventListener("click", () => stop());
-    panel = h(
+    o.panel = h(
       "div",
       { class: "panel" },
       renderPick(result),
       h("div", { class: "bar" }, again, copyButton(JSON.stringify(result, null, 2), "everything as JSON"), close),
     );
-    shadow.append(panel);
+    o.shadow.append(o.panel);
   }
 
-  function pick(el) {
+  function pick(el: Element): void {
     picking = false;
-    highlight.hidden = true;
-    tip.hidden = true;
+    if (overlay) {
+      overlay.highlight.hidden = true;
+      overlay.tip.hidden = true;
+    }
     const result = describeElement(el);
     showPanel(result);
     void send(MSG.INSPECTOR_PICKED, { result });
   }
 
-  function start() {
-    ensureHost();
-    if (panel) {
-      panel.remove();
-      panel = null;
+  function start(): void {
+    const o = ensureHost();
+    if (o.panel) {
+      o.panel.remove();
+      o.panel = null;
     }
     if (!picking) {
       picking = true;
@@ -202,15 +214,15 @@ function create() {
     }
   }
 
-  function stop() {
+  function stop(): void {
     picking = false;
     unlisten();
-    if (host) host.remove();
-    host = shadow = highlight = tip = panel = null;
+    if (overlay) overlay.host.remove();
+    overlay = null;
   }
 
-  ext.runtime.onMessage.addListener((incoming) => {
-    if (incoming && incoming.v === 1 && incoming.type === MSG.INSPECTOR_STOP) stop();
+  ext.runtime.onMessage.addListener((incoming: unknown) => {
+    if (isMessage(incoming) && incoming.type === MSG.INSPECTOR_STOP) stop();
     return false;
   });
 
