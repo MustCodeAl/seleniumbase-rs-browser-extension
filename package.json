@@ -6,11 +6,11 @@
   "description": "Browser extensions that record, inspect and export tests for seleniumbase-rs",
   "license": "MIT",
   "scripts": {
-    "build": "bun run scripts/build.ts",
-    "build:e2e": "bun run scripts/build.ts --e2e",
-    "test": "bun test",
+    "build": "\"$npm_execpath\" scripts/build.ts",
+    "build:e2e": "\"$npm_execpath\" scripts/build.ts --e2e",
+    "test": "\"$npm_execpath\" test",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p src/tsconfig.json",
-    "lint": "bun run typecheck && bun run scripts/lint.ts"
+    "lint": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p src/tsconfig.json && \"$npm_execpath\" scripts/lint.ts"
   },
   "devDependencies": {
     "@types/bun": "1.4.3",
