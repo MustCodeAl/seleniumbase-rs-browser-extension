@@ -467,10 +467,20 @@ async fn inspector_selectors_match_one_element_each() {
         .expect("the Fingerprint JSON deserialises into seleniumbase-rs's Fingerprint");
     println!("fingerprint JSON: {}", report["fingerprint"]);
     assert_eq!(
-        fingerprint.user_agent.as_deref(),
+        fingerprint.user_agent().as_str(),
         probe["navigator"]["userAgent"].as_str()
     );
-    assert_eq!(fingerprint.core_version, Some(155));
+    assert_eq!(fingerprint.core_version(), Some(155));
+    // The screen is one setting in 0.5.0 (a width and a height), not two numbers.
+    let screen = fingerprint.screen().value().expect("the screen");
+    assert_eq!(
+        probe["screen"]["width"].as_u64(),
+        Some(u64::from(screen.width))
+    );
+    assert_eq!(
+        probe["screen"]["height"].as_u64(),
+        Some(u64::from(screen.height))
+    );
     assert_eq!(report["fingerprint"]["browser_type"], json!("chromium"));
     assert_eq!(report["fingerprint"]["os_type"], json!("Macos"));
 

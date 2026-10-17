@@ -40,7 +40,7 @@ publish = false
 [workspace]
 
 [dependencies]
-seleniumbase-rs = { git = "https://github.com/MustCodeAl/seleniumbase-rs", tag = "v0.1.1", features = ["test-util"] }
+seleniumbase-rs = { git = "https://github.com/MustCodeAl/seleniumbase-rs", tag = "v0.5.0", features = ["test-util"] }
 tokio = { version = "1.53", features = ["macros", "rt-multi-thread", "time"] }
 "#;
         std::fs::write(dir.path().join("Cargo.toml"), manifest).expect("writes the manifest");
