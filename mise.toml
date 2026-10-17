@@ -3,7 +3,7 @@
 #   mise install     the toolchain below
 #   mise run build   dist/chrome, dist/firefox and their zips
 #   mise run test    bun test (selector generator, code generators, build)
-#   mise run lint    manifest rules, then web-ext lint on both dists
+#   mise run lint    tsc, the source and manifest rules, then web-ext lint on the firefox dist
 #   mise run e2e     builds the e2e variant, then drives a real Chrome from Rust
 
 [tools]
@@ -25,10 +25,13 @@ run = "bun run scripts/build.ts"
 description = "Unit tests: selectors, code generators, steps, manifest"
 run = "bun test"
 
+[tasks.typecheck]
+description = "tsc over the extension (src/) and the Bun side (scripts/, tests/)"
+run = "bun run typecheck"
+
 [tasks.lint]
-description = "Manifest rules and web-ext lint on both dists"
-depends = ["build"]
-run = "bun run scripts/lint.ts"
+description = "tsc, the source and manifest rules, and web-ext lint on the firefox dist"
+run = "bun run lint"
 
 [tasks.e2e]
 description = "Load the extension into headless Chrome from Rust and record, export, run"

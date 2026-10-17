@@ -1,5 +1,9 @@
 // Builds the extension from one source tree into dist/chrome and dist/firefox,
-// and a zip of each. Run with `bun run scripts/build.ts`.
+// and a zip of each. Run with `bun run build` (or `bun run scripts/build.ts`).
+//
+// The sources are TypeScript. Bun bundles each entry into a classic script and names
+// it after its source with a .js extension (content.ts becomes content.js), so the
+// manifests and the html pages name the built files and never the sources.
 //
 //   --e2e          also build dist/chrome-e2e and dist/firefox-e2e: the same plus
 //                  host access to loopback pages, because a headless browser
@@ -17,7 +21,7 @@
 //        background  a module imported by the one background bundle
 //        scripts     files bundled one by one (content scripts, page scripts)
 //        panelEntry  (ui only) the panel shell, bundled with every panelViews module
-//        panelViews  a module that registers a tab in the panel (ui/registry.js)
+//        panelViews  a module that registers a tab in the panel (ui/registry.ts)
 //        manifest    manifest keys merged into every browser's manifest, and
 //        chrome / firefox   the same for one browser
 //   every other file of a feature (html, css, images) is copied as it is, to
@@ -151,7 +155,7 @@ function copyable(feature: Feature, file: string): boolean {
   const base = rel.split("/").pop() as string;
   if (base === "feature.json" || base.startsWith("_") || base.endsWith(".md")) return false;
   if (base.endsWith(".js") || base.endsWith(".ts")) return false; // modules are bundled, never copied
-  if (rel.startsWith("tests/") || base.endsWith(".test.js")) return false;
+  if (rel.startsWith("tests/") || base.endsWith(".test.ts")) return false;
   return true;
 }
 
