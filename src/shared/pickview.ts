@@ -23,7 +23,8 @@ export interface PickResult {
 }
 
 function copyButton(text: string, what: string): HTMLButtonElement {
-  const button = h("button", { type: "button", text: "Copy", title: `Copy ${what}` });
+  // The visible word is "Copy"; the name says what is copied, and still starts with the word.
+  const button = h("button", { type: "button", text: "Copy", title: `Copy ${what}`, "aria-label": `Copy ${what}` });
   button.addEventListener("click", async () => {
     const done = await copyText(text);
     button.textContent = done ? "Copied" : "Press Ctrl+C";

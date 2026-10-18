@@ -4,6 +4,7 @@ import { ext } from "../../shared/api.ts";
 import { type ExportFormat, FORMATS, isExportFormat } from "../../shared/codegen/index.ts";
 import { copyText } from "../../shared/clipboard.ts";
 import { h } from "../../shared/dom.ts";
+import { downloadFile } from "../../shared/download.ts";
 import { errorText } from "../../shared/guards.ts";
 import { type ExportedFile, MSG, type RecorderSnapshot } from "../../shared/protocol.ts";
 import { type Step, type StepType, pickSelector } from "../../shared/steps.ts";
@@ -69,15 +70,6 @@ function remember(key: string, value: string): void {
   } catch {
     // not remembered
   }
-}
-
-function download(file: ExportedFile): void {
-  const url = URL.createObjectURL(new Blob([file.text], { type: file.mime }));
-  const link = h("a", { href: url, download: file.filename });
-  document.body.append(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
 registerView({
@@ -292,7 +284,7 @@ registerView({
         h(
           "div",
           { class: "bar" },
-          h("button", { type: "button", class: "primary", text: "Download", disabled: state.steps.length === 0, onclick: () => guard(async () => download(await exportNow())) }),
+          h("button", { type: "button", class: "primary", text: "Download", disabled: state.steps.length === 0, onclick: () => guard(async () => downloadFile(await exportNow())) }),
           h("button", { type: "button", text: "Copy", disabled: state.steps.length === 0, onclick: () => guard(async () => { await copyText((await exportNow()).text); }) }),
         ),
         h("pre", { "data-preview": "" }, previewText),
