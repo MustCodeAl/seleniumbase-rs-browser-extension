@@ -10,18 +10,35 @@ The full guide is part of the seleniumbase-rs documentation site:
 | Feature | What it does |
 | --- | --- |
 | **Recorder** | Start and stop recording from the toolbar popup (or the Chrome side panel, or the Firefox sidebar). Clicks, double clicks, typing (one step per field), selects, checkboxes, key presses (Enter, Escape, arrows), file inputs (the file name only) and, if you turn it on, scrolls become steps you can edit, reorder and delete. Export as a seleniumbase-rs **pure CDP** Rust test, a **BaseCase** Rust test, or a **Chrome DevTools Recorder** JSON file (the `@puppeteer/replay` format that `sbrs import-puppeteer` reads). |
-| **Inspector** | Pick an element (hover, click; Escape cancels) and see its selectors, each with the number of elements it matches, and calls to copy for both engines (`page.locator(...).click()`, `sb.click(...)`, ...). The **Page** tab shows what the page sees: `navigator.webdriver`, user agent and client hints, languages, platform, hardware, screen and window sizes, time zone, WebGL vendor and renderer, a canvas hash, plugin counts, permission states and headless markers, and copies it as JSON shaped like seleniumbase-rs's `Fingerprint`. |
+| **Inspector** | Pick an element (hover, click; Escape cancels) and see its selectors, each with the number of elements it matches, and calls to copy for both engines (`page.locator(...).click()`, `sb.click(...)`, ...). The **Page** tab shows what the page sees: `navigator.webdriver`, user agent and client hints, languages, platform, hardware, screen and window sizes, time zone, WebGL vendor and renderer, a canvas hash, plugin counts, permission states and headless markers, and copies, exports and imports it as the JSON of seleniumbase-rs's `Fingerprint` (see below). |
 | **DevTools Recorder export** (Chrome, Edge) | Adds "seleniumbase-rs (pure CDP)" and "seleniumbase-rs (BaseCase)" to the Export menu of the DevTools Recorder panel. |
 
 Nothing is sent anywhere. Recordings are kept in the extension's own storage and leave it only when you press
-Download or Copy. The value of a password or payment field is never read, so it cannot be recorded; the
+Download, Copy or Export. The value of a password or payment field is never read, so it cannot be recorded; the
 generated code reads it from an environment variable instead (`RECORDED_PASSWORD`, ...).
 
 The Rust it writes is for seleniumbase-rs 0.5.0. `Locator::type_text` empties a field before it types, so a
 recorded field is typed with that call alone; the text assertions take the text first; and the Page tab's JSON is
-the `Fingerprint` that 0.5.0 reads (one object for the screen, the WebGL strings and the device counts). `e2e/`
-compiles every export against tag `v0.5.0`, and `tests/golden/` holds what its `ActionRecorder` writes for the
-actions both know.
+the `Fingerprint` that 0.5.0 reads (fingerprint API v2). `e2e/` compiles every export against tag `v0.5.0`, and
+`tests/golden/` holds what its `ActionRecorder` writes for the actions both know.
+
+### The Page tab: capture, copy, export, import
+
+The Page tab reads what the page's own scripts see and writes it as the JSON of a seleniumbase-rs `Fingerprint`
+(fingerprint API v2, seleniumbase-rs 0.5): one entry per setting, each its value (`"timezone": "Europe/Paris"`,
+`"screen": { "width": 1512, "height": 982 }`). A setting the page cannot tell (the position, the fonts, a proxy,
+the WebRTC addresses) is left out, which seleniumbase-rs reads as "natural". The only word it writes is `"off"`,
+for `client_hints` on a secure page of a browser that has no `navigator.userAgentData` (Firefox, Safari).
+
+* **Capture again** reads the page again.
+* **Copy** puts the JSON on the clipboard. **Export** saves it as `fingerprint-<host>-<date>.json` (a Blob link, so
+  the manifests gain no permission: there is no `downloads` permission).
+* **Import** opens a `.json` file you pick, checks it as API v2, and lists every setting the file claims next to
+  the page's value, as `match`, `differs` or `not observable` (a page cannot read the position, the fonts or a
+  proxy, and a `"random"` setting has no value until seleniumbase-rs draws one). The old flat shape of
+  seleniumbase-rs 0.4 and earlier (`screen_width`, `webgl_vendor`, `flags`, ...) is refused with each field named, as
+  is bad JSON or an `"off"` where seleniumbase-rs refuses one. The file is read and compared inside the panel;
+  nothing is uploaded. In Firefox the toolbar popup can close when the file dialog opens; use the sidebar for Import.
 
 ## Install from source
 
@@ -48,7 +65,7 @@ page; say no and it still records the page you started on.
 ```sh
 bun run typecheck    # tsc over src/ (the extension) and over scripts/ and tests/ (the Bun side)
 bun run lint         # typecheck, the source rules, the manifest rules, then web-ext lint on dist/firefox
-bun test             # selectors, code generators, steps, manifests, build output
+bun test             # selectors, code generators, steps, fingerprints, the Page tab, manifests, build output
 mise run e2e         # a real Chrome driven from Rust (see e2e/README.md)
 ```
 
@@ -73,7 +90,9 @@ src/
     steps.ts               the step model, merging typing, masking secrets, sanitising incoming steps
     codegen/               cdp.ts, basecase.ts, replay.ts (DevTools Recorder JSON, both ways), index.ts
     rust.ts                rustStr() and friends: everything recorded goes into Rust through these
-    calls.ts, fingerprint.ts, protocol.ts, api.ts, dom.ts, clipboard.ts, pickview.ts, guards.ts
+    fingerprint.ts         the page report as API v2 Fingerprint JSON; the export file name
+    fingerprint-file.ts    reads a Fingerprint file (v2 yes, flat v1 refused) and compares it with a page
+    calls.ts, protocol.ts, api.ts, dom.ts, download.ts, clipboard.ts, pickview.ts, guards.ts
   background/            the router: registerHandler(type, handler, from); store.ts helpers
   recorder/  inspector/  devtools-recorder/    one folder per feature (see below)
   ui/                    the panel (popup, side panel, sidebar) and its views
