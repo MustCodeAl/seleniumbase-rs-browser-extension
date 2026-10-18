@@ -76,7 +76,7 @@ function comparisonView(name: string, imported: Reading, report: Replies[typeof 
       ? null
       : h(
           "table",
-          { class: "compare" },
+          { class: "compare", "aria-labelledby": "fp-compare-title" },
           h(
             "thead",
             {},

@@ -544,7 +544,7 @@ const OTHER: ReadonlyMap<string, { read: Reader<unknown>; nullable: boolean }> =
 
 /** The flat names of version 1 that a version 2 file does not have, and what replaced each. */
 const V1: ReadonlyMap<string, string> = new Map([
-  ["flags", "the masking flags are gone: a setting is its value, \"random\" or \"off\", and the delivery is `policy`"],
+  ["flags", "is gone: a setting is its value, \"random\" or \"off\", and how the claims are delivered is `policy`"],
   ["screen_width", "is now `screen`: { \"width\": ..., \"height\": ... }"],
   ["screen_height", "is now `screen`: { \"width\": ..., \"height\": ... }"],
   ["webgl_vendor", "is now `webgl`: { \"vendor\": ..., \"renderer\": ... }"],

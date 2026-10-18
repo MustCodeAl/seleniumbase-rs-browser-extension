@@ -212,6 +212,9 @@ describe("importing a file", () => {
       ["Result", "col"],
     ]);
     expect(rows.every((r) => r.querySelector('th[scope="row"]'))).toBe(true);
+    // The table is named by the heading above it.
+    const labelledby = must(section.querySelector("table")).getAttribute("aria-labelledby");
+    expect(page.document.getElementById(must(labelledby))?.tagName).toBe("H3");
     // The keyboard lands on the result.
     expect(page.document.activeElement?.getAttribute("id")).toBe("fp-compare-title");
   });

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import {
   type Comparison,
@@ -64,7 +64,10 @@ describe("the shared fixtures (the e2e crate holds seleniumbase-rs to the same f
 });
 
 describe("what the extension writes", () => {
-  const names = ["chrome-macos", "firefox-linux", "chrome-android"];
+  const names = readdirSync(join(GOLDEN, "probes"))
+    .filter((file) => file.endsWith(".json"))
+    .map((file) => file.replace(/\.json$/, ""))
+    .sort();
 
   test.each(names)("%s: every setting is one the reader accepts, and every key is read", (name) => {
     // JSON.parse is untyped; the files are a probe report and the JSON written for it.

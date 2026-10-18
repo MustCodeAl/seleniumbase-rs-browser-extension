@@ -230,6 +230,20 @@ describe("the JSON written for each recorded probe (API v2, pinned)", () => {
     });
   });
 
+  // chrome-headless-macos.json is a real report: it was printed by the Chrome end-to-end run
+  // (`probePage` in a headless Chrome 155 on macOS, through the built extension).
+  test("a headless Chrome recorded from the end-to-end run", () => {
+    const fp: unknown = JSON.parse(readFileSync(join(GOLDEN, "page", "chrome-headless-macos.json"), "utf8"));
+    expect(fp).toMatchObject({
+      os_type: "Macos",
+      core_version: 155,
+      timezone: "America/Chicago",
+      screen: { width: 800, height: 600 },
+      media_devices: { audio_inputs: 1, audio_outputs: 1, video_inputs: 1 },
+      client_hints: { platform: "macOS", platform_version: "27.0.1", ua_full_version: "155.0.8059.85" },
+    });
+  });
+
   test("a Firefox has no Client Hints and leaves what it lacks natural", () => {
     const fp: unknown = JSON.parse(readFileSync(join(GOLDEN, "page", "firefox-linux.json"), "utf8"));
     expect(fp).toMatchObject({ browser_type: "firefox", os_type: "Linux", client_hints: "off", oscpu: "Linux x86_64" });
