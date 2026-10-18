@@ -21,6 +21,7 @@ use sbrs_companion_e2e::lab::{
 use sbrs_companion_e2e::scratch::{headless, Scratch};
 use seleniumbase_rs::api::recorder::ActionRecorder;
 use seleniumbase_rs::sb_cdp::Key;
+use seleniumbase_rs::stealth::fingerprint::{BrowserType, OsType, ScreenSize};
 use seleniumbase_rs::Fingerprint;
 use serde_json::{json, Value};
 
@@ -69,6 +70,133 @@ fn parity_with_the_action_recorder() {
         assert_eq!(
             produced, expected,
             "{file} no longer matches ActionRecorder"
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// The fingerprint files against seleniumbase-rs's own `Fingerprint` (API v2).
+
+/// The `.json` files of `tests/golden/fingerprints/<dir>` as (name, text), sorted.
+fn fingerprint_files(dir: &str) -> Vec<(String, String)> {
+    let path = golden("fingerprints").join(dir);
+    let mut files: Vec<(String, String)> = std::fs::read_dir(&path)
+        .unwrap_or_else(|error| panic!("{}: {error}", path.display()))
+        .map(|entry| entry.expect("a directory entry").path())
+        .filter(|file| file.extension().is_some_and(|ext| ext == "json"))
+        .map(|file| {
+            let name = file
+                .file_name()
+                .expect("a name")
+                .to_string_lossy()
+                .into_owned();
+            (
+                name,
+                std::fs::read_to_string(&file).expect("a readable file"),
+            )
+        })
+        .collect();
+    files.sort();
+    files
+}
+
+/// Two JSON values are the same when their numbers are the same number, whether
+/// the Rust side writes `8` or `8.0`.
+fn same_json(a: &Value, b: &Value) -> bool {
+    match (a, b) {
+        (Value::Number(x), Value::Number(y)) => x.as_f64() == y.as_f64(),
+        (Value::Array(x), Value::Array(y)) => {
+            x.len() == y.len() && x.iter().zip(y).all(|(p, q)| same_json(p, q))
+        }
+        (Value::Object(x), Value::Object(y)) => {
+            x.len() == y.len()
+                && x.iter()
+                    .all(|(k, v)| y.get(k).is_some_and(|w| same_json(v, w)))
+        }
+        _ => a == b,
+    }
+}
+
+/// The JSON the Page tab writes for the recorded probe results of
+/// `tests/golden/fingerprints/probes` (`bun test tests/fingerprint.test.ts` pins the
+/// text of each) is a seleniumbase-rs 0.5.0 `Fingerprint`: it deserialises, every
+/// setting survives a round trip through the core unchanged, and the core's own JSON
+/// reads back as the same fingerprint. Needs no browser.
+#[test]
+fn the_json_the_page_tab_writes_is_a_seleniumbase_rs_fingerprint() {
+    let files = fingerprint_files("page");
+    assert!(files.len() >= 3, "the pinned files: {files:?}");
+    for (name, text) in &files {
+        let written: Value = serde_json::from_str(text).expect("valid JSON");
+        let fingerprint: Fingerprint = serde_json::from_str(text)
+            .unwrap_or_else(|error| panic!("{name}: seleniumbase-rs 0.5.0 refuses it: {error}"));
+        let again = serde_json::to_value(&fingerprint).expect("a Fingerprint serialises");
+        for (key, value) in written.as_object().expect("a JSON object") {
+            let kept = again
+                .get(key)
+                .unwrap_or_else(|| panic!("{name}: `{key}` was dropped by the core"));
+            assert!(
+                same_json(value, kept),
+                "{name}: `{key}` was written as {value} and the core has {kept}"
+            );
+        }
+        let back: Fingerprint = serde_json::from_value(again).expect("the core reads its own JSON");
+        assert_eq!(back, fingerprint, "{name}");
+    }
+
+    // What the core reads out of them is what the probes saw.
+    let read = |name: &str| -> Fingerprint {
+        let (_, text) = fingerprint_files("page")
+            .into_iter()
+            .find(|(file, _)| file == name)
+            .unwrap_or_else(|| panic!("{name} is pinned"));
+        serde_json::from_str(&text).expect("a Fingerprint")
+    };
+    let mac = read("chrome-macos.json");
+    assert_eq!(mac.browser_type(), BrowserType::Chromium);
+    assert_eq!(mac.os_type(), OsType::Macos);
+    assert_eq!(mac.core_version(), Some(155));
+    assert_eq!(mac.screen().value(), Some(&ScreenSize::new(1512, 982)));
+    assert_eq!(mac.languages().as_str(), Some("en-US,en"));
+    assert_eq!(mac.accept_languages().as_str(), Some("en-US,en;q=0.9"));
+    assert!(mac.client_hints().is_value());
+    assert_eq!(mac.media_devices().value().map(|d| d.video_inputs), Some(1));
+
+    let firefox = read("firefox-linux.json");
+    assert_eq!(firefox.browser_type(), BrowserType::Firefox);
+    assert_eq!(firefox.os_type(), OsType::Linux);
+    // A browser without Client Hints writes "off"; one without deviceMemory writes nothing.
+    assert!(firefox.client_hints().is_off());
+    assert!(firefox.device_memory().is_natural());
+
+    let phone = read("chrome-android.json");
+    assert_eq!(phone.os_type(), OsType::Android);
+    assert_eq!(phone.pixel_ratio().value(), Some(&2.625));
+}
+
+/// The extension's own checks of a fingerprint file (`src/shared/fingerprint-file.ts`)
+/// agree with seleniumbase-rs 0.5.0 on the shared cases: every accepted case
+/// deserialises, every refused one does not. Needs no browser.
+#[test]
+fn the_extension_and_seleniumbase_rs_agree_on_which_fingerprint_files_are_valid() {
+    let cases = |file: &str| -> Vec<Value> {
+        let text = std::fs::read_to_string(golden("fingerprints").join(file)).expect("the cases");
+        serde_json::from_str(&text).expect("a JSON list")
+    };
+    let accepted = cases("accepted.json");
+    let refused = cases("refused.json");
+    assert!(accepted.len() >= 5 && refused.len() >= 10);
+    for case in &accepted {
+        let name = case["name"].as_str().expect("a name");
+        if let Err(error) = serde_json::from_value::<Fingerprint>(case["fingerprint"].clone()) {
+            panic!("accepted by the extension, refused by seleniumbase-rs 0.5.0: {name}: {error}");
+        }
+    }
+    for case in &refused {
+        let name = case["name"].as_str().expect("a name");
+        assert!(
+            serde_json::from_value::<Fingerprint>(case["fingerprint"].clone()).is_err(),
+            "refused by the extension, accepted by seleniumbase-rs 0.5.0: {name}"
         );
     }
 }
@@ -532,6 +660,108 @@ async fn inspector_selectors_match_one_element_each() {
         .await;
         panel.snapshot(&format!("panel-{view}")).await;
     }
+
+    // The Page tab's buttons, in the real extension page. Export saves a file that
+    // seleniumbase-rs 0.5.0 reads as a Fingerprint, Import compares a file with the
+    // page, and the old flat shape is refused in the panel, naming the field.
+    let panel = Ext::open(
+        &browser,
+        &id,
+        &format!("ui/panel.html?tabId={tab}&view=page"),
+    )
+    .await;
+    eventually(
+        "the Page tab's buttons",
+        Duration::from_secs(20),
+        || async {
+            let names = panel
+                .run_script("[...document.querySelectorAll('#view-page button')].map(b => b.getAttribute('aria-label') || b.textContent).join('|')")
+                .await;
+            let names = names.as_str()?.to_owned();
+            [
+                "Capture again",
+                "Copy Fingerprint JSON",
+                "Export Fingerprint JSON as a file",
+                "Import a Fingerprint JSON file",
+            ]
+            .iter()
+            .all(|label| names.contains(label))
+            .then_some(())
+        },
+    )
+    .await;
+    let saved = panel
+        .run_script(
+            r#"(async () => {
+                const saved = [];
+                const blobs = new Map();
+                const click = HTMLAnchorElement.prototype.click;
+                const create = URL.createObjectURL;
+                HTMLAnchorElement.prototype.click = function () { saved.push({ name: this.download, href: this.href }); };
+                URL.createObjectURL = (blob) => { const url = create.call(URL, blob); blobs.set(url, blob); return url; };
+                try {
+                    [...document.querySelectorAll('#view-page button')].find(b => b.textContent === 'Export').click();
+                } finally {
+                    HTMLAnchorElement.prototype.click = click;
+                    URL.createObjectURL = create;
+                }
+                return { name: saved[0].name, text: await blobs.get(saved[0].href).text() };
+            })()"#,
+        )
+        .await;
+    let file_name = saved["name"].as_str().expect("a file name");
+    let file_text = saved["text"].as_str().expect("the file's text");
+    println!("exported {file_name}:\n{file_text}");
+    assert!(
+        file_name.starts_with("fingerprint-127.0.0.1-") && file_name.ends_with(".json"),
+        "{file_name}"
+    );
+    let exported: Fingerprint = serde_json::from_str(file_text)
+        .expect("the exported file is a seleniumbase-rs 0.5.0 Fingerprint");
+    assert_eq!(exported.core_version(), Some(155));
+    let compared = panel
+        .run_script(&format!(
+            r#"(async () => {{
+                const pick = async (name, text) => {{
+                    const input = document.querySelector('#view-page input[type=file]');
+                    const files = new DataTransfer();
+                    files.items.add(new File([text], name, {{ type: 'application/json' }}));
+                    input.files = files.files;
+                    input.dispatchEvent(new Event('change'));
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    const alert = document.querySelector('#view-page [role=alert]');
+                    const status = document.querySelector('#view-page section.compare [role=status]');
+                    return {{
+                        alert: alert ? alert.innerText : null,
+                        rows: document.querySelectorAll('#view-page section.compare tbody tr').length,
+                        summary: status ? status.innerText : null,
+                    }};
+                }};
+                return {{
+                    old: await pick('old.json', '{{"screen_width":1920,"flags":{{}}}}'),
+                    same: await pick('same.json', {text}),
+                }};
+            }})()"#,
+            text = serde_json::to_string(file_text).expect("a string"),
+        ))
+        .await;
+    println!("import: {compared}");
+    let refused = compared["old"]["alert"]
+        .as_str()
+        .expect("an alert for the old shape");
+    assert!(
+        refused.contains("`screen_width`") && refused.contains("old flat shape"),
+        "{refused}"
+    );
+    assert_eq!(compared["old"]["rows"], json!(0));
+    assert_eq!(compared["same"]["alert"], json!(null));
+    assert!(compared["same"]["rows"].as_i64().expect("a row count") > 15);
+    let summary = compared["same"]["summary"].as_str().expect("a summary");
+    assert!(
+        summary.contains(" match, 0 differ, 0 not observable."),
+        "{summary}"
+    );
+    panel.snapshot("panel-page-import").await;
 
     // The DevTools Recorder plugin page, outside DevTools: the registration needs
     // a real DevTools, but the plugin it registers can be called.
