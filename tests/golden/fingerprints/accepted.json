@@ -1,0 +1,112 @@
+[
+  {
+    "name": "an empty object: every setting natural",
+    "fingerprint": {}
+  },
+  {
+    "name": "the words, in any case, null as natural, and a seed",
+    "fingerprint": {
+      "timezone": "Europe/Berlin",
+      "geolocation": "random",
+      "webrtc": "off",
+      "media_devices": "off",
+      "client_hints": "OFF",
+      "bluetooth": "Off",
+      "battery": null,
+      "locale": "natural",
+      "screen": { "width": 1920, "height": 1080 },
+      "seed": 11
+    }
+  },
+  {
+    "name": "a value for every setting the format has",
+    "fingerprint": {
+      "browser_type": "chromium",
+      "os_type": "Windows",
+      "core_version": 156,
+      "seed": 7,
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+      "platform": "Win32",
+      "hardware_concurrency": 8,
+      "device_memory": 8,
+      "max_touch_points": 0,
+      "vendor": "Google Inc.",
+      "product_sub": "20030107",
+      "app_version": "5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+      "locale": "en-US",
+      "languages": "en-US,en",
+      "accept_languages": "en-US,en;q=0.9",
+      "timezone": "America/New_York",
+      "screen": { "width": 1920, "height": 1080 },
+      "avail_screen": { "width": 1920, "height": 1040 },
+      "pixel_ratio": 1,
+      "color_depth": 24,
+      "webgl": {
+        "vendor": "Google Inc. (NVIDIA)",
+        "renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Direct3D11 vs_5_0 ps_5_0, D3D11)",
+        "vendor_id": "0x10de",
+        "renderer_id": "0x2786"
+      },
+      "media_devices": { "audio_inputs": 1, "audio_outputs": 1, "video_inputs": 1 },
+      "geolocation": { "latitude": 40.7128, "longitude": -74.006, "accuracy": 50 },
+      "fonts": ["Arial", "Calibri"],
+      "proxy": { "type": "http", "host": "proxy.example", "port": 8080, "save_traffic": false },
+      "webrtc": { "public_ip": "203.0.113.9", "local_ip": "10.0.0.2" },
+      "battery": { "charging": true, "level": 0.9, "charging_time": 0, "discharging_time": null },
+      "connection": { "effective_type": "4g", "rtt": 50, "downlink": 10, "save_data": false },
+      "speech_voices": [
+        { "name": "Microsoft David", "lang": "en-US", "default": true, "local_service": true, "voice_uri": "Microsoft David" }
+      ],
+      "bluetooth": true,
+      "client_hints": {
+        "brands": [{ "brand": "Chromium", "version": "156" }, { "brand": "Google Chrome", "version": "156" }],
+        "full_version_list": [
+          { "brand": "Chromium", "version": "156.0.8078.35" },
+          { "brand": "Google Chrome", "version": "156.0.8078.35" }
+        ],
+        "platform": "Windows",
+        "platform_version": "15.0.0",
+        "architecture": "x86",
+        "bitness": "64",
+        "model": "",
+        "ua_full_version": "156.0.8078.35",
+        "mobile": false,
+        "wow64": false,
+        "form_factors": ["Desktop"]
+      },
+      "policy": { "canvas_noise": "Persistent", "grant_permissions": false },
+      "humanize": { "enabled": false, "min_keystroke_delay_ms": 40, "max_keystroke_delay_ms": 180, "mouse_steps": 24 },
+      "local_storage": false,
+      "save_service_worker": false,
+      "custom_start_urls": ["https://example.com/"],
+      "cmd_params": { "--lang": "en-US" }
+    }
+  },
+  {
+    "name": "one WebGL string and labelled devices, which replace the counts",
+    "fingerprint": {
+      "webgl": { "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)" },
+      "media_devices": { "labelled": [{ "kind": "audioinput", "device_id": "a", "group_id": "g", "label": "Mic" }] }
+    }
+  },
+  {
+    "name": "the aliases of the browser and the system",
+    "fingerprint": { "browser_type": "safari", "os_type": "ipados" }
+  },
+  {
+    "name": "Client Hints saved before wow64 and form_factors existed",
+    "fingerprint": {
+      "client_hints": {
+        "brands": [],
+        "full_version_list": [],
+        "platform": "macOS",
+        "platform_version": "15.0.0",
+        "architecture": "arm",
+        "bitness": "64",
+        "model": "",
+        "ua_full_version": "155.0.0.0",
+        "mobile": false
+      }
+    }
+  }
+]

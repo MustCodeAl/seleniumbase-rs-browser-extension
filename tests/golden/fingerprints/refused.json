@@ -1,0 +1,91 @@
+[
+  {
+    "name": "the old flat shape",
+    "fingerprint": { "os_type": "Windows", "hardware_concurrency": 8, "screen_width": 1920, "flags": { "navigator_masking": "Custom" } },
+    "problem": "`screen_width`"
+  },
+  {
+    "name": "what the Page tab wrote before 0.5",
+    "fingerprint": {
+      "browser_type": "chromium",
+      "screen_width": 1512,
+      "screen_height": 982,
+      "webgl_vendor": "Google Inc. (Apple)",
+      "webgl_renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+      "audio_inputs": 1,
+      "audio_outputs": 1,
+      "video_inputs": 1
+    },
+    "problem": "`webgl_vendor`"
+  },
+  {
+    "name": "a field that is not a setting",
+    "fingerprint": { "user_agentt": "x" },
+    "problem": "`user_agentt`"
+  },
+  {
+    "name": "off for a time zone",
+    "fingerprint": { "timezone": "off" },
+    "problem": "`timezone`"
+  },
+  {
+    "name": "random for a setting with no random value",
+    "fingerprint": { "oscpu": "random" },
+    "problem": "`oscpu`"
+  },
+  {
+    "name": "random for the app version without a user agent",
+    "fingerprint": { "app_version": "random" },
+    "problem": "`app_version`"
+  },
+  {
+    "name": "text where a number goes",
+    "fingerprint": { "hardware_concurrency": "eight" },
+    "problem": "`hardware_concurrency`"
+  },
+  {
+    "name": "a negative count",
+    "fingerprint": { "hardware_concurrency": -1 },
+    "problem": "`hardware_concurrency`"
+  },
+  {
+    "name": "a number where the screen object goes",
+    "fingerprint": { "screen": 1920 },
+    "problem": "`screen`"
+  },
+  {
+    "name": "a screen without its height",
+    "fingerprint": { "screen": { "width": 1920 } },
+    "problem": "`height`"
+  },
+  {
+    "name": "Client Hints without most of their members",
+    "fingerprint": { "client_hints": { "brands": [] } },
+    "problem": "`full_version_list`"
+  },
+  {
+    "name": "a null browser type",
+    "fingerprint": { "browser_type": null },
+    "problem": "`browser_type`"
+  },
+  {
+    "name": "a browser type that does not exist",
+    "fingerprint": { "browser_type": "netscape" },
+    "problem": "`browser_type`"
+  },
+  {
+    "name": "humanize with only one of its members",
+    "fingerprint": { "humanize": { "enabled": true } },
+    "problem": "`humanize`"
+  },
+  {
+    "name": "a proxy with no host",
+    "fingerprint": { "proxy": { "type": "http", "host": "", "port": 8080, "save_traffic": false } },
+    "problem": "`proxy`"
+  },
+  {
+    "name": "a list instead of an object",
+    "fingerprint": [1, 2],
+    "problem": "one JSON object"
+  }
+]
