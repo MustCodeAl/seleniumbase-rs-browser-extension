@@ -12,6 +12,8 @@
   --ok-fg: #166534;
   --warn-bg: #fef3c7;
   --warn-fg: #92400e;
+  --bad-bg: #fee2e2;
+  --bad-fg: #991b1b;
   --code-bg: #f3f4f6;
 }
 @media (prefers-color-scheme: dark) {
@@ -27,6 +29,8 @@
     --ok-fg: #bbf7d0;
     --warn-bg: #78350f;
     --warn-fg: #fde68a;
+    --bad-bg: #7f1d1d;
+    --bad-fg: #fecaca;
     --code-bg: #1f2937;
   }
 }
@@ -79,3 +83,18 @@ th { text-align: left; width: 38%; color: var(--muted); font-weight: 500; vertic
 td { padding: 3px 0; word-break: break-word; }
 tr { border-top: 1px solid var(--line); }
 .empty { color: var(--muted); padding: 12px 0; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+button:focus-visible, select:focus-visible, input:focus-visible, [tabindex="-1"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.group { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+.compare h3 { margin: 8px 0 4px; font-size: 12px; text-transform: none; letter-spacing: normal; color: var(--fg); word-break: break-word; }
+.problems { margin: 8px 0; padding: 8px 10px; border-radius: 6px; background: var(--bad-bg); color: var(--bad-fg); }
+.problems ul { margin: 4px 0 0 18px; padding: 0; }
+table.compare { table-layout: fixed; font-size: 12px; margin: 6px 0; }
+table.compare th, table.compare td { padding: 4px 6px 4px 0; vertical-align: top; }
+table.compare thead th { width: auto; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+table.compare tbody th { width: auto; color: var(--fg); font-weight: 600; }
+table.compare thead th:nth-child(1), table.compare thead th:nth-child(4) { width: 22%; }
+.verdict { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 999px; white-space: nowrap; }
+.verdict.match { background: var(--ok-bg); color: var(--ok-fg); }
+.verdict.differs { background: var(--bad-bg); color: var(--bad-fg); }
+.verdict.unknown { background: var(--code-bg); color: var(--muted); }

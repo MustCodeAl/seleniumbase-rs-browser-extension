@@ -13,6 +13,7 @@ interface BuiltManifest {
   action: { default_popup: string; default_icon: Record<string, string> };
   background: { service_worker?: string; scripts?: string[] };
   permissions: string[];
+  optional_permissions?: string[];
   optional_host_permissions?: string[];
   host_permissions?: string[];
   content_scripts?: unknown[];
@@ -102,6 +103,33 @@ describe("firefox", () => {
   });
   test("has no Recorder plugin files", () => {
     expect(existsSync(join(out, "firefox", "devtools-recorder"))).toBe(false);
+  });
+});
+
+describe("the Page tab's Capture again, Copy, Export and Import", () => {
+  const browsers = ["chrome", "firefox"];
+  const panelOf = (browser: string) => readFileSync(join(out, browser, "ui", "panel.js"), "utf8");
+
+  // Export is a Blob behind an `<a download>` (src/shared/download.ts), which every extension page may do, so
+  // the manifests list no `downloads` permission. A new permission would have to be listed here and in
+  // scripts/lint.ts on purpose.
+  test.each(browsers)("%s: the manifest asks for nothing beyond what it did before they were added", (browser) => {
+    const expected = browser === "chrome" ? ["activeTab", "scripting", "sidePanel", "storage"] : ["activeTab", "scripting", "storage"];
+    expect([...manifestOf(browser).permissions].sort()).toEqual(expected);
+    expect(manifestOf(browser).optional_permissions).toBeUndefined();
+    expect(manifestOf(browser).optional_host_permissions).toEqual(["<all_urls>"]);
+    expect(manifestOf(browser).host_permissions).toBeUndefined();
+  });
+
+  test.each(browsers)("%s: the panel carries the four controls and never reaches for the downloads API or the network", (browser) => {
+    const panel = panelOf(browser);
+    // Copy's name is built from what it copies, so only "Fingerprint JSON" is literal in the bundle.
+    for (const label of ["Capture again", "Fingerprint JSON", "Export Fingerprint JSON as a file", "Import a Fingerprint JSON file and compare it with this page"]) {
+      expect(panel).toContain(label);
+    }
+    expect(panel).toContain("application/json");
+    expect(panel).not.toMatch(/\.downloads\b/);
+    expect(panel).not.toMatch(/\b(fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon)\b/);
   });
 });
 
