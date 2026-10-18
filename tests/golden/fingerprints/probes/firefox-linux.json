@@ -1,0 +1,51 @@
+{
+  "navigator": {
+    "webdriver": false,
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0",
+    "language": "en-US",
+    "languages": ["en-US", "en"],
+    "platform": "Linux x86_64",
+    "vendor": "",
+    "productSub": "20100101",
+    "appVersion": "5.0 (X11)",
+    "hardwareConcurrency": 4,
+    "deviceMemory": null,
+    "maxTouchPoints": 0,
+    "cookieEnabled": true,
+    "doNotTrack": "unspecified",
+    "pdfViewerEnabled": true,
+    "pluginsCount": 5,
+    "pluginNames": ["PDF Viewer", "Chrome PDF Viewer", "Chromium PDF Viewer", "Microsoft Edge PDF Viewer", "WebKit built-in PDF"],
+    "mimeTypesCount": 2,
+    "oscpu": "Linux x86_64",
+    "buildID": "20181001000000"
+  },
+  "userAgentData": null,
+  "screen": { "width": 1920, "height": 1080, "availWidth": 1920, "availHeight": 1053, "colorDepth": 24, "pixelDepth": 24 },
+  "devicePixelRatio": 1,
+  "window": { "innerWidth": 1280, "innerHeight": 720, "outerWidth": 1280, "outerHeight": 800, "screenX": 0, "screenY": 0 },
+  "timezone": { "name": "America/Chicago", "offsetMinutes": 300, "locale": "en-US" },
+  "webgl": {
+    "vendor": "Mozilla",
+    "renderer": "Mozilla",
+    "version": "WebGL 1.0",
+    "unmaskedVendor": "Intel",
+    "unmaskedRenderer": "Mesa Intel(R) UHD Graphics 620 (KBL GT2)",
+    "webgl2": true
+  },
+  "canvas": { "hash": "a3d9c07be12f4a58b6c1d0e7f9a2b4c6", "algorithm": "sha-256" },
+  "permissions": {
+    "notifications": "prompt",
+    "geolocation": "prompt",
+    "camera": "prompt",
+    "microphone": "prompt",
+    "clipboard-read": null,
+    "persistent-storage": "prompt"
+  },
+  "notificationPermission": "default",
+  "media": { "audioinput": 1, "audiooutput": 0, "videoinput": 1 },
+  "headless": { "markers": [], "likely": false },
+  "url": "https://example.org/start",
+  "secureContext": true,
+  "userAgentDataPresent": false
+}

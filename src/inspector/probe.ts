@@ -242,5 +242,9 @@ export async function probePage(): Promise<ProbeReport> {
     media,
     headless: { markers, likely: markers.some((m) => strong.includes(m)) },
     url: safe(() => location.href),
+    // Client Hints exist only on a secure page, so these two tell "this browser has none"
+    // from "this page cannot have them".
+    secureContext: safe(() => window.isSecureContext),
+    userAgentDataPresent: safe(() => nav.userAgentData !== undefined),
   };
 }

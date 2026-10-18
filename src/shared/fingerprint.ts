@@ -1,9 +1,16 @@
-// "What this page sees" as a seleniumbase-rs `Fingerprint`
-// (src/stealth/fingerprint.rs, as of 0.5.0). Only fields that match a Fingerprint
-// field are written, under the Rust field names, and a setting made of several
-// values (the screen, the WebGL strings, the device counts) is one object, as the
-// Rust side reads it. A value the browser did not give is left out, never null, so
-// the JSON deserialises into a Fingerprint as it is (it refuses an unknown field).
+// "What this page sees" as a seleniumbase-rs `Fingerprint` (fingerprint API v2,
+// src/stealth/fingerprint.rs and settings.rs, as of 0.5.0).
+//
+// In API v2 the JSON of a Fingerprint is one entry per setting, and an entry is the
+// setting's value, or one of the words "natural", "random" and "off". Here every
+// setting the page answers is written as its value; a setting the page cannot
+// answer is left out, which the Rust side reads as "natural" (and never null). The
+// one word written is "off", for Client Hints on a browser that has none. A setting
+// made of several values (the screen, the WebGL strings, the device counts) is one
+// object, as the Rust side reads it, and is written only when the browser gave all
+// of its parts, because a part left out would be read as 0. The Rust side refuses
+// an unknown field and the old flat shape (`screen_width`, `flags`), so nothing else
+// is written. src/shared/fingerprint-file.ts reads such a file back.
 
 // ---------------------------------------------------------------- what a page gives
 
@@ -120,6 +127,10 @@ export interface PageProbe {
   media?: ProbeMedia | null;
   headless?: ProbeHeadless;
   url?: string | null;
+  /** `window.isSecureContext`: some APIs (Client Hints, media devices) exist only on a secure page. */
+  secureContext?: boolean | null;
+  /** Whether `navigator.userAgentData` exists at all (`userAgentData` is also null when reading it failed). */
+  userAgentDataPresent?: boolean | null;
 }
 
 // ---------------------------------------------------------------- what Rust reads
@@ -158,9 +169,12 @@ export interface MediaDeviceCounts {
 }
 
 /**
- * The settings of seleniumbase-rs's `Fingerprint` (0.5.0) that a browser can answer,
- * under the Rust names, each as the plain value the Rust side reads as `Spoof::Value`.
- * It refuses a field it does not know, so nothing else is written.
+ * The settings of seleniumbase-rs's `Fingerprint` (0.5.0, API v2) that a browser can
+ * answer, under the Rust names, each as the plain value the Rust side reads as
+ * `Spoof::Value`. The Rust side refuses a field it does not know, so nothing else is
+ * written. `browser_type`, `os_type` and `core_version` are not settings (they are
+ * plain fields there), and `accept_languages` is derived from `navigator.languages`,
+ * because a page cannot read the request header.
  */
 export interface Fingerprint {
   browser_type?: string;
@@ -186,10 +200,17 @@ export interface Fingerprint {
   color_depth?: number;
   webgl?: WebGlStrings;
   media_devices?: MediaDeviceCounts;
-  client_hints?: ClientHints;
+  /** The hints, or "off" for a browser on a secure page that has no `navigator.userAgentData`. */
+  client_hints?: ClientHints | "off";
 }
 
-/** `["fr-FR", "fr", "en"]` as `fr-FR,fr;q=0.9,en;q=0.8`. */
+/** `["fr-FR", "fr", "en"]` as `fr-FR,fr`: `navigator.languages`, comma-separated, as the Rust `languages` setting is. */
+export function languageList(languages: string[] | null | undefined): string | undefined {
+  if (!Array.isArray(languages) || languages.length === 0) return undefined;
+  return languages.join(",");
+}
+
+/** `["fr-FR", "fr", "en"]` as `fr-FR,fr;q=0.9,en;q=0.8`: the `Accept-Language` header, as the Rust `accept_languages` setting is. */
 export function acceptLanguages(languages: string[] | null | undefined): string | undefined {
   if (!Array.isArray(languages) || languages.length === 0) return undefined;
   return languages
@@ -224,13 +245,11 @@ function webGlOf(gl: ProbeWebGl | null | undefined): WebGlStrings | undefined {
   return vendor || renderer ? out : undefined;
 }
 
-/** The device counts the browser gave. */
+/** The device counts, if the browser gave all three: a count left out would be read as 0. */
 function mediaOf(media: ProbeMedia | null | undefined): MediaDeviceCounts | undefined {
-  const out: MediaDeviceCounts = {};
-  if (finite(media?.audioinput)) out.audio_inputs = media.audioinput;
-  if (finite(media?.audiooutput)) out.audio_outputs = media.audiooutput;
-  if (finite(media?.videoinput)) out.video_inputs = media.videoinput;
-  return Object.keys(out).length > 0 ? out : undefined;
+  const { audioinput, audiooutput, videoinput } = media ?? {};
+  if (!finite(audioinput) || !finite(audiooutput) || !finite(videoinput)) return undefined;
+  return { audio_inputs: audioinput, audio_outputs: audiooutput, video_inputs: videoinput };
 }
 
 function browserType(ua: string): string {
@@ -302,9 +321,8 @@ export function toFingerprint(probe: PageProbe): Fingerprint {
   put(fp, "build_id", nav.buildID);
   put(fp, "app_version", nav.appVersion);
   put(fp, "locale", nav.language);
-  const languages = acceptLanguages(nav.languages);
-  put(fp, "languages", languages);
-  put(fp, "accept_languages", languages);
+  put(fp, "languages", languageList(nav.languages));
+  put(fp, "accept_languages", acceptLanguages(nav.languages));
   put(fp, "timezone", probe.timezone?.name);
   put(fp, "screen", sizeOf(probe.screen?.width, probe.screen?.height));
   put(fp, "avail_screen", sizeOf(probe.screen?.availWidth, probe.screen?.availHeight));
@@ -314,5 +332,42 @@ export function toFingerprint(probe: PageProbe): Fingerprint {
   put(fp, "media_devices", mediaOf(probe.media));
   const hints = clientHints(probe.userAgentData);
   if (hints) fp.client_hints = hints;
+  // Client Hints exist only on a secure page, so a missing `navigator.userAgentData` says
+  // "this browser has none" only there (Firefox, Safari); elsewhere it says nothing.
+  else if (probe.secureContext === true && probe.userAgentDataPresent === false) fp.client_hints = "off";
   return fp;
+}
+
+/** The fingerprint as the text to copy: pretty JSON, no trailing newline. */
+export function fingerprintText(fingerprint: Fingerprint): string {
+  return JSON.stringify(fingerprint, null, 2);
+}
+
+/** The text of an exported file: the same JSON, ending in a newline. */
+export function fingerprintFile(fingerprint: Fingerprint): string {
+  return `${fingerprintText(fingerprint)}\n`;
+}
+
+const two = (n: number): string => String(n).padStart(2, "0");
+
+/** The host of `url` as a file name part: lower case letters, digits, dots and dashes, or `page` if it has none. */
+function hostPart(url: string | null | undefined): string {
+  let host = "";
+  try {
+    host = new URL(url ?? "").host;
+  } catch {
+    // not an address
+  }
+  const clean = host
+    .toLowerCase()
+    .replace(/[^a-z0-9.-]+/g, "-")
+    .replace(/^[-.]+|[-.]+$/g, "")
+    .slice(0, 60);
+  return clean === "" ? "page" : clean;
+}
+
+/** `fingerprint-<host>-<date>.json` for the page read from `url`, with `now` as the (local) date. */
+export function fingerprintFilename(url: string | null | undefined, now: Date): string {
+  const date = `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}`;
+  return `fingerprint-${hostPart(url)}-${date}.json`;
 }

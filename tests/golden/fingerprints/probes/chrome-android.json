@@ -1,0 +1,73 @@
+{
+  "navigator": {
+    "webdriver": false,
+    "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Mobile Safari/537.36",
+    "language": "fr-FR",
+    "languages": ["fr-FR", "fr", "en-US", "en"],
+    "platform": "Linux armv81",
+    "vendor": "Google Inc.",
+    "productSub": "20030107",
+    "appVersion": "5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Mobile Safari/537.36",
+    "hardwareConcurrency": 8,
+    "deviceMemory": 4,
+    "maxTouchPoints": 5,
+    "cookieEnabled": true,
+    "doNotTrack": null,
+    "pdfViewerEnabled": false,
+    "pluginsCount": 0,
+    "pluginNames": [],
+    "mimeTypesCount": 0,
+    "oscpu": null,
+    "buildID": null
+  },
+  "userAgentData": {
+    "brands": [
+      { "brand": "Chromium", "version": "155" },
+      { "brand": "Not.A/Brand", "version": "24" },
+      { "brand": "Google Chrome", "version": "155" }
+    ],
+    "mobile": true,
+    "platform": "Android",
+    "high": {
+      "architecture": "",
+      "bitness": "",
+      "model": "Pixel 8",
+      "platformVersion": "14.0.0",
+      "uaFullVersion": "155.0.8059.40",
+      "fullVersionList": [
+        { "brand": "Chromium", "version": "155.0.8059.40" },
+        { "brand": "Not.A/Brand", "version": "24.0.0.0" },
+        { "brand": "Google Chrome", "version": "155.0.8059.40" }
+      ],
+      "wow64": false,
+      "formFactors": ["Mobile"]
+    }
+  },
+  "screen": { "width": 412, "height": 915, "availWidth": 412, "availHeight": 915, "colorDepth": 24, "pixelDepth": 24 },
+  "devicePixelRatio": 2.625,
+  "window": { "innerWidth": 412, "innerHeight": 780, "outerWidth": 412, "outerHeight": 780, "screenX": 0, "screenY": 0 },
+  "timezone": { "name": "Europe/Paris", "offsetMinutes": -120, "locale": "fr-FR" },
+  "webgl": {
+    "vendor": "WebKit",
+    "renderer": "WebKit WebGL",
+    "version": "WebGL 1.0 (OpenGL ES 2.0 Chromium)",
+    "unmaskedVendor": "Qualcomm",
+    "unmaskedRenderer": "Adreno (TM) 740",
+    "webgl2": true
+  },
+  "canvas": { "hash": "0b8e4f2a6c1d9e7b3a5f8c0d2e4b6a91", "algorithm": "sha-256" },
+  "permissions": {
+    "notifications": "prompt",
+    "geolocation": "prompt",
+    "camera": "prompt",
+    "microphone": "prompt",
+    "clipboard-read": "prompt",
+    "persistent-storage": "prompt"
+  },
+  "notificationPermission": "default",
+  "media": { "audioinput": 1, "audiooutput": 1, "videoinput": 2 },
+  "headless": { "markers": [], "likely": false },
+  "url": "https://m.example.net:8443/",
+  "secureContext": true,
+  "userAgentDataPresent": true
+}

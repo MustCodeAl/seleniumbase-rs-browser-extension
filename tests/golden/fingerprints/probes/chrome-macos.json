@@ -1,0 +1,73 @@
+{
+  "navigator": {
+    "webdriver": false,
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+    "language": "en-US",
+    "languages": ["en-US", "en"],
+    "platform": "MacIntel",
+    "vendor": "Google Inc.",
+    "productSub": "20030107",
+    "appVersion": "5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+    "hardwareConcurrency": 8,
+    "deviceMemory": 8,
+    "maxTouchPoints": 0,
+    "cookieEnabled": true,
+    "doNotTrack": null,
+    "pdfViewerEnabled": true,
+    "pluginsCount": 5,
+    "pluginNames": ["PDF Viewer", "Chrome PDF Viewer", "Chromium PDF Viewer", "Microsoft Edge PDF Viewer", "WebKit built-in PDF"],
+    "mimeTypesCount": 2,
+    "oscpu": null,
+    "buildID": null
+  },
+  "userAgentData": {
+    "brands": [
+      { "brand": "Chromium", "version": "155" },
+      { "brand": "Not.A/Brand", "version": "24" },
+      { "brand": "Google Chrome", "version": "155" }
+    ],
+    "mobile": false,
+    "platform": "macOS",
+    "high": {
+      "architecture": "arm",
+      "bitness": "64",
+      "model": "",
+      "platformVersion": "15.0.0",
+      "uaFullVersion": "155.0.8059.40",
+      "fullVersionList": [
+        { "brand": "Chromium", "version": "155.0.8059.40" },
+        { "brand": "Not.A/Brand", "version": "24.0.0.0" },
+        { "brand": "Google Chrome", "version": "155.0.8059.40" }
+      ],
+      "wow64": false,
+      "formFactors": ["Desktop"]
+    }
+  },
+  "screen": { "width": 1512, "height": 982, "availWidth": 1512, "availHeight": 944, "colorDepth": 30, "pixelDepth": 30 },
+  "devicePixelRatio": 2,
+  "window": { "innerWidth": 1000, "innerHeight": 800, "outerWidth": 1000, "outerHeight": 880, "screenX": 0, "screenY": 38 },
+  "timezone": { "name": "Europe/Paris", "offsetMinutes": -120, "locale": "en-US" },
+  "webgl": {
+    "vendor": "WebKit",
+    "renderer": "WebKit WebGL",
+    "version": "WebGL 1.0 (OpenGL ES 2.0 Chromium)",
+    "unmaskedVendor": "Google Inc. (Apple)",
+    "unmaskedRenderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+    "webgl2": true
+  },
+  "canvas": { "hash": "5c1f0e9a3b7d4a2c8e6f1b0d9a7c5e3f", "algorithm": "sha-256" },
+  "permissions": {
+    "notifications": "prompt",
+    "geolocation": "prompt",
+    "camera": "prompt",
+    "microphone": "prompt",
+    "clipboard-read": "prompt",
+    "persistent-storage": "prompt"
+  },
+  "notificationPermission": "default",
+  "media": { "audioinput": 1, "audiooutput": 1, "videoinput": 1 },
+  "headless": { "markers": [], "likely": false },
+  "url": "https://example.com/",
+  "secureContext": true,
+  "userAgentDataPresent": true
+}

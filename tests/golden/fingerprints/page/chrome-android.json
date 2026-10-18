@@ -1,0 +1,77 @@
+{
+  "browser_type": "chromium",
+  "os_type": "Android",
+  "core_version": 155,
+  "user_agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Mobile Safari/537.36",
+  "platform": "Linux armv81",
+  "hardware_concurrency": 8,
+  "device_memory": 4,
+  "max_touch_points": 5,
+  "vendor": "Google Inc.",
+  "product_sub": "20030107",
+  "app_version": "5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Mobile Safari/537.36",
+  "locale": "fr-FR",
+  "languages": "fr-FR,fr,en-US,en",
+  "accept_languages": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
+  "timezone": "Europe/Paris",
+  "screen": {
+    "width": 412,
+    "height": 915
+  },
+  "avail_screen": {
+    "width": 412,
+    "height": 915
+  },
+  "pixel_ratio": 2.625,
+  "color_depth": 24,
+  "webgl": {
+    "vendor": "Qualcomm",
+    "renderer": "Adreno (TM) 740"
+  },
+  "media_devices": {
+    "audio_inputs": 1,
+    "audio_outputs": 1,
+    "video_inputs": 2
+  },
+  "client_hints": {
+    "brands": [
+      {
+        "brand": "Chromium",
+        "version": "155"
+      },
+      {
+        "brand": "Not.A/Brand",
+        "version": "24"
+      },
+      {
+        "brand": "Google Chrome",
+        "version": "155"
+      }
+    ],
+    "full_version_list": [
+      {
+        "brand": "Chromium",
+        "version": "155.0.8059.40"
+      },
+      {
+        "brand": "Not.A/Brand",
+        "version": "24.0.0.0"
+      },
+      {
+        "brand": "Google Chrome",
+        "version": "155.0.8059.40"
+      }
+    ],
+    "platform": "Android",
+    "platform_version": "14.0.0",
+    "architecture": "",
+    "bitness": "",
+    "model": "Pixel 8",
+    "ua_full_version": "155.0.8059.40",
+    "mobile": true,
+    "wow64": false,
+    "form_factors": [
+      "Mobile"
+    ]
+  }
+}

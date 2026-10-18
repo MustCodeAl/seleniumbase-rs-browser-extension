@@ -15,6 +15,14 @@ describe("probePage", () => {
     expect(typeof report.headless.likely).toBe("boolean");
   });
 
+  test("says whether the page is secure and whether navigator.userAgentData exists, so \"off\" is never a guess", async () => {
+    const report = await probePage();
+    // There is no window here, so it cannot say the page is secure; the navigator it does have shows no userAgentData.
+    expect(report.secureContext).toBeNull();
+    expect(typeof report.userAgentDataPresent).toBe("boolean");
+    expect("client_hints" in toFingerprint(report)).toBe(false);
+  });
+
   test("is one self-contained function (it is serialised as source text)", () => {
     const source = probePage.toString();
     expect(source.startsWith("async function probePage")).toBe(true);
