@@ -1,5 +1,5 @@
 // "What this page sees" as a seleniumbase-rs `Fingerprint` (fingerprint API v2,
-// src/stealth/fingerprint.rs and settings.rs, as of 0.5.0).
+// src/evasion/fingerprint.rs and settings.rs, as of 0.7.0).
 //
 // In API v2 the JSON of a Fingerprint is one entry per setting, and an entry is the
 // setting's value, or one of the words "natural", "random" and "off". Here every
@@ -169,7 +169,7 @@ export interface MediaDeviceCounts {
 }
 
 /**
- * The settings of seleniumbase-rs's `Fingerprint` (0.5.0, API v2) that a browser can
+ * The settings of seleniumbase-rs's `Fingerprint` (0.7.0, API v2) that a browser can
  * answer, under the Rust names, each as the plain value the Rust side reads as
  * `Spoof::Value`. The Rust side refuses a field it does not know, so nothing else is
  * written. `browser_type`, `os_type` and `core_version` are not settings (they are

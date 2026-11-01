@@ -1,6 +1,7 @@
 //! A scratch crate that compiles, and runs, the Rust the extension exports.
 //!
-//! It depends on seleniumbase-rs from GitHub, as a person's own project would, and
+//! It depends on seleniumbase-rs from GitHub and on nothing else (the exports take Tokio from
+//! `seleniumbase_rs::tokio`), as a person's own project would, and
 //! shares this crate's `Cargo.lock` and target directory so it builds offline and
 //! only the exported file itself needs compiling.
 
@@ -40,8 +41,8 @@ publish = false
 [workspace]
 
 [dependencies]
-seleniumbase-rs = { git = "https://github.com/MustCodeAl/seleniumbase-rs", tag = "v0.5.0", features = ["test-util"] }
-tokio = { version = "1.53", features = ["macros", "rt-multi-thread", "time"] }
+seleniumbase-rs = { git = "https://github.com/MustCodeAl/seleniumbase-rs", tag = "v0.7.0", features = ["test-util"] }
+# No tokio line: the exports import it with `use seleniumbase_rs::tokio;`.
 "#;
         std::fs::write(dir.path().join("Cargo.toml"), manifest).expect("writes the manifest");
         std::fs::create_dir_all(dir.path().join("src")).expect("makes src");

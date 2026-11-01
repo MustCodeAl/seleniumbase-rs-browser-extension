@@ -23,6 +23,7 @@ const flow: Step[] = [
 describe("pure CDP program", () => {
   test("a test, exact output", () => {
     expect(cdpProgram(flow, { entry: "test", name: "recorded_test" })).toBe(`use seleniumbase_rs::sb_cdp::{Browser, Key, LaunchOptions, SelectBy};
+use seleniumbase_rs::tokio;
 
 #[tokio::test]
 async fn recorded_test() -> Result<(), Box<dyn std::error::Error>> {
@@ -47,6 +48,7 @@ async fn recorded_test() -> Result<(), Box<dyn std::error::Error>> {
       entry: "main",
     });
     expect(text).toBe(`use seleniumbase_rs::sb_cdp::{Browser, LaunchOptions};
+use seleniumbase_rs::tokio;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -149,7 +151,7 @@ describe("BaseCase test", () => {
   });
 
   test("exact output", () => {
-    expect(basecaseProgram(flow, { entry: "test", name: "recorded_test" })).toBe(`use seleniumbase_rs::{BaseCase, BrowserConfig};
+    expect(basecaseProgram(flow, { entry: "test", name: "recorded_test" })).toBe(`use seleniumbase_rs::{tokio, BaseCase, BrowserConfig};
 
 #[tokio::test]
 async fn recorded_test() -> Result<(), Box<dyn std::error::Error>> {

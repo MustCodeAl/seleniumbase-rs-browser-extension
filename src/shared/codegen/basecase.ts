@@ -127,7 +127,7 @@ export function basecaseProgram(steps: Step[], options: ProgramOptions = {}): st
   }
   const head = entryAttribute(entry, fnIdent(options.name ?? "recorded_test"));
   return (
-    "use seleniumbase_rs::{BaseCase, BrowserConfig};\n\n" +
+    "use seleniumbase_rs::{tokio, BaseCase, BrowserConfig};\n\n" +
     `${head} -> Result<(), Box<dyn std::error::Error>> {\n` +
     "    let mut sb = BaseCase::new(BrowserConfig::default()).await?;\n" +
     `${body}    sb.quit().await?;\n    Ok(())\n}\n`

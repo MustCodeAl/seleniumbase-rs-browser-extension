@@ -17,15 +17,17 @@ Nothing is sent anywhere. Recordings are kept in the extension's own storage and
 Download, Copy or Export. The value of a password or payment field is never read, so it cannot be recorded; the
 generated code reads it from an environment variable instead (`RECORDED_PASSWORD`, ...).
 
-The Rust it writes is for seleniumbase-rs 0.5.0. `Locator::type_text` empties a field before it types, so a
+The Rust it writes is for seleniumbase-rs 0.7.0. A pure CDP program imports Tokio with
+`use seleniumbase_rs::tokio;` and a BaseCase program with `use seleniumbase_rs::{tokio, BaseCase, BrowserConfig};`,
+both before `#[tokio::main]` or `#[tokio::test]`. `Locator::type_text` empties a field before it types, so a
 recorded field is typed with that call alone; the text assertions take the text first; and the Page tab's JSON is
-the `Fingerprint` that 0.5.0 reads (fingerprint API v2). `e2e/` compiles every export against tag `v0.5.0`, and
+the `Fingerprint` that 0.7.0 reads (fingerprint API v2). `e2e/` compiles every export against tag `v0.7.0`, and
 `tests/golden/` holds what its `ActionRecorder` writes for the actions both know.
 
 ### The Page tab: capture, copy, export, import
 
 The Page tab reads what the page's own scripts see and writes it as the JSON of a seleniumbase-rs `Fingerprint`
-(fingerprint API v2, seleniumbase-rs 0.5): one entry per setting, each its value (`"timezone": "Europe/Paris"`,
+(fingerprint API v2, seleniumbase-rs 0.7): one entry per setting, each its value (`"timezone": "Europe/Paris"`,
 `"screen": { "width": 1512, "height": 982 }`). A setting the page cannot tell (the position, the fonts, a proxy,
 the WebRTC addresses) is left out, which seleniumbase-rs reads as "natural". The only word it writes is `"off"`,
 for `client_hints` on a secure page of a browser that has no `navigator.userAgentData` (Firefox, Safari).
@@ -163,7 +165,7 @@ validated and bounded (`sanitizeStep`) before they are stored.
 ## Limits
 
 Steps inside iframes and shadow roots are not recorded (a shadow host is recorded as the target). The recorder
-follows the tab you started in, not other tabs. Only Chrome 155, Edge 155 and Firefox ESR 153.4 were run; see
+follows the tab you started in, not other tabs. Only Chrome 155 and 156, Edge 155 and 156, and Firefox ESR 153.4 were run; see
 `e2e/README.md` for what was and was not exercised in a real browser (the toolbar popup, the permission prompt,
 the side panel and the DevTools Recorder's Export menu were not).
 

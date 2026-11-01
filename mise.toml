@@ -9,7 +9,7 @@
 [tools]
 bun = "latest"
 node = "lts"
-# The e2e crate depends on seleniumbase-rs by path, which needs its rust-version.
+# The e2e crate depends on seleniumbase-rs by git tag (v0.7.0), which needs its rust-version.
 rust = { version = "1.99", components = "clippy,rustfmt" }
 
 [env]

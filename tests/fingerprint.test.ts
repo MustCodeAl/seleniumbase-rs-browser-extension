@@ -106,7 +106,7 @@ describe("toFingerprint", () => {
     expect(fp.languages).toBe("en-US,en");
     expect(fp.accept_languages).toBe("en-US,en;q=0.9");
     expect(fp.timezone).toBe("Europe/Paris");
-    // seleniumbase-rs 0.5.0 reads a screen as one setting, not as two numbers.
+    // seleniumbase-rs 0.7.0 reads a screen as one setting, not as two numbers.
     expect(fp.screen).toEqual({ width: 1512, height: 982 });
     expect(fp.avail_screen).toEqual({ width: 1512, height: 944 });
     expect(fp.pixel_ratio).toBe(2);
@@ -174,7 +174,7 @@ describe("toFingerprint", () => {
     }
   });
 
-  // seleniumbase-rs 0.5.0 refuses a field it does not know (deny_unknown_fields), and its
+  // seleniumbase-rs 0.7.0 refuses a field it does not know (deny_unknown_fields), and its
   // screen, WebGL strings and media devices are one setting each, not flat numbers.
   test("only keys the Rust Fingerprint knows", () => {
     const known = new Set([

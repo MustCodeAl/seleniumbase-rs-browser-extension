@@ -21,8 +21,7 @@ use sbrs_companion_e2e::lab::{
 use sbrs_companion_e2e::scratch::{headless, Scratch};
 use seleniumbase_rs::api::recorder::ActionRecorder;
 use seleniumbase_rs::sb_cdp::Key;
-use seleniumbase_rs::stealth::fingerprint::{BrowserType, OsType, ScreenSize};
-use seleniumbase_rs::Fingerprint;
+use seleniumbase_rs::{BrowserType, Fingerprint, OsType, ScreenSize};
 use serde_json::{json, Value};
 
 fn golden(name: &str) -> PathBuf {
@@ -119,7 +118,7 @@ fn same_json(a: &Value, b: &Value) -> bool {
 
 /// The JSON the Page tab writes for the recorded probe results of
 /// `tests/golden/fingerprints/probes` (`bun test tests/fingerprint.test.ts` pins the
-/// text of each) is a seleniumbase-rs 0.5.0 `Fingerprint`: it deserialises, every
+/// text of each) is a seleniumbase-rs 0.7.0 `Fingerprint`: it deserialises, every
 /// setting survives a round trip through the core unchanged, and the core's own JSON
 /// reads back as the same fingerprint. Needs no browser.
 #[test]
@@ -129,7 +128,7 @@ fn the_json_the_page_tab_writes_is_a_seleniumbase_rs_fingerprint() {
     for (name, text) in &files {
         let written: Value = serde_json::from_str(text).expect("valid JSON");
         let fingerprint: Fingerprint = serde_json::from_str(text)
-            .unwrap_or_else(|error| panic!("{name}: seleniumbase-rs 0.5.0 refuses it: {error}"));
+            .unwrap_or_else(|error| panic!("{name}: seleniumbase-rs 0.7.0 refuses it: {error}"));
         let again = serde_json::to_value(&fingerprint).expect("a Fingerprint serialises");
         for (key, value) in written.as_object().expect("a JSON object") {
             let kept = again
@@ -175,7 +174,7 @@ fn the_json_the_page_tab_writes_is_a_seleniumbase_rs_fingerprint() {
 }
 
 /// The extension's own checks of a fingerprint file (`src/shared/fingerprint-file.ts`)
-/// agree with seleniumbase-rs 0.5.0 on the shared cases: every accepted case
+/// agree with seleniumbase-rs 0.7.0 on the shared cases: every accepted case
 /// deserialises, every refused one does not. Needs no browser.
 #[test]
 fn the_extension_and_seleniumbase_rs_agree_on_which_fingerprint_files_are_valid() {
@@ -189,14 +188,14 @@ fn the_extension_and_seleniumbase_rs_agree_on_which_fingerprint_files_are_valid(
     for case in &accepted {
         let name = case["name"].as_str().expect("a name");
         if let Err(error) = serde_json::from_value::<Fingerprint>(case["fingerprint"].clone()) {
-            panic!("accepted by the extension, refused by seleniumbase-rs 0.5.0: {name}: {error}");
+            panic!("accepted by the extension, refused by seleniumbase-rs 0.7.0: {name}: {error}");
         }
     }
     for case in &refused {
         let name = case["name"].as_str().expect("a name");
         assert!(
             serde_json::from_value::<Fingerprint>(case["fingerprint"].clone()).is_err(),
-            "refused by the extension, accepted by seleniumbase-rs 0.5.0: {name}"
+            "refused by the extension, accepted by seleniumbase-rs 0.7.0: {name}"
         );
     }
 }
@@ -579,10 +578,17 @@ async fn inspector_selectors_match_one_element_each() {
     let report = ext.ok("inspector/probe", json!({ "tabId": tab })).await;
     let probe = &report["probe"];
     println!("page report: {probe:#}");
-    assert!(probe["navigator"]["userAgent"]
+    // The installed Chrome sets the version: read its major from the user agent, so a run
+    // does not depend on one Chrome release.
+    let chrome_major: u32 = probe["navigator"]["userAgent"]
         .as_str()
         .expect("ua")
-        .contains("Chrome/155"));
+        .split("Chrome/")
+        .nth(1)
+        .and_then(|rest| rest.split('.').next())
+        .and_then(|major| major.parse().ok())
+        .expect("a Chrome/<major> token in the user agent");
+
     assert!(probe["headless"]["markers"]
         .as_array()
         .expect("markers")
@@ -598,8 +604,8 @@ async fn inspector_selectors_match_one_element_each() {
         fingerprint.user_agent().as_str(),
         probe["navigator"]["userAgent"].as_str()
     );
-    assert_eq!(fingerprint.core_version(), Some(155));
-    // The screen is one setting in 0.5.0 (a width and a height), not two numbers.
+    assert_eq!(fingerprint.core_version(), Some(chrome_major));
+    // The screen is one setting in 0.7.0 (a width and a height), not two numbers.
     let screen = fingerprint.screen().value().expect("the screen");
     assert_eq!(
         probe["screen"]["width"].as_u64(),
@@ -662,7 +668,7 @@ async fn inspector_selectors_match_one_element_each() {
     }
 
     // The Page tab's buttons, in the real extension page. Export saves a file that
-    // seleniumbase-rs 0.5.0 reads as a Fingerprint, Import compares a file with the
+    // seleniumbase-rs 0.7.0 reads as a Fingerprint, Import compares a file with the
     // page, and the old flat shape is refused in the panel, naming the field.
     let panel = Ext::open(
         &browser,
@@ -717,8 +723,8 @@ async fn inspector_selectors_match_one_element_each() {
         "{file_name}"
     );
     let exported: Fingerprint = serde_json::from_str(file_text)
-        .expect("the exported file is a seleniumbase-rs 0.5.0 Fingerprint");
-    assert_eq!(exported.core_version(), Some(155));
+        .expect("the exported file is a seleniumbase-rs 0.7.0 Fingerprint");
+    assert_eq!(exported.core_version(), Some(chrome_major));
     let compared = panel
         .run_script(&format!(
             r#"(async () => {{

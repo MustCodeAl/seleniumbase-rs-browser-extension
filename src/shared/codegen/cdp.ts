@@ -140,7 +140,8 @@ export function cdpProgram(steps: Step[], options: ProgramOptions = {}): string 
   const names = [...imports].sort().join(", ");
   const head = entryAttribute(entry, fnIdent(options.name ?? "recorded_test"));
   return (
-    `use seleniumbase_rs::sb_cdp::{${names}};\n\n` +
+    `use seleniumbase_rs::sb_cdp::{${names}};\n` +
+    "use seleniumbase_rs::tokio;\n\n" +
     `${head} -> Result<(), Box<dyn std::error::Error>> {\n` +
     `    let browser = Browser::launch(LaunchOptions::builder().build()?).await?;\n` +
     `    let page = browser.default_page().await?;\n` +
