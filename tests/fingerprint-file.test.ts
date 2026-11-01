@@ -112,7 +112,7 @@ describe("reading a file", () => {
     expect(problems).toHaveLength(1);
     const message = must(problems[0]);
     expect(message).toContain("old flat shape");
-    expect(message).toContain("0.5 refuses");
+    expect(message).toContain("0.5 and later refuse");
     for (const field of ["`screen_width`", "`screen_height`", "`webgl_vendor`", "`flags`"]) {
       expect(message).toContain(field);
     }
@@ -121,7 +121,7 @@ describe("reading a file", () => {
   });
 
   test("a field that no version has is named", () => {
-    expect(problemsOf(readFingerprint({ speed: 9 }))).toEqual(["Unknown field `speed`: it is not a setting of a seleniumbase-rs 0.5 Fingerprint."]);
+    expect(problemsOf(readFingerprint({ speed: 9 }))).toEqual(["Unknown field `speed`: it is not a setting of a seleniumbase-rs 0.7 Fingerprint."]);
   });
 
   test("prototype names are unknown fields, not settings", () => {

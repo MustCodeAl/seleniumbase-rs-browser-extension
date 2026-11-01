@@ -54,7 +54,7 @@ function comparisonView(name: string, imported: Reading, report: Replies[typeof 
       h("div", { class: "problems", role: "alert" }, h("strong", { text: title }), h("ul", {}, list.map((text) => h("li", { text })))),
       h("div", { class: "bar" }, clear),
     );
-  if (!imported.ok) return problems(`${name} is not a seleniumbase-rs 0.5 fingerprint.`, imported.problems);
+  if (!imported.ok) return problems(`${name} is not a seleniumbase-rs 0.7 fingerprint.`, imported.problems);
   if (!report) {
     return h("section", { class: "compare", "aria-label": "Imported fingerprint" }, h("p", { class: "empty", text: `${name} is a version 2 fingerprint. Read the page to compare it.` }), h("div", { class: "bar" }, clear));
   }

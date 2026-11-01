@@ -1,14 +1,14 @@
-// A Fingerprint file as seleniumbase-rs 0.5 reads it (fingerprint API v2), and how it
+// A Fingerprint file as seleniumbase-rs 0.7 reads it (fingerprint API v2), and how it
 // compares with what a page sees. Nothing here touches the browser: the Page tab
 // reads a file the person picked, and this module checks it and lines it up with the
 // page's own report.
 //
-// The format (src/stealth/fingerprint.rs and settings.rs of seleniumbase-rs): one JSON
+// The format (src/evasion/fingerprint.rs and settings.rs of seleniumbase-rs): one JSON
 // object, one entry per setting. An entry is the setting's value, or one of the words
 // "natural", "random" and "off" (any case); a missing entry, a null and "natural" all
 // mean the browser's own value. "off" means something only for the settings listed
 // in `OFF_SETTINGS`, and the Rust side refuses it elsewhere. Version 1 was flat
-// (`screen_width`, `webgl_vendor`, a `flags` object); 0.5 refuses it and names the
+// (`screen_width`, `webgl_vendor`, a `flags` object); 0.5 and later refuse it and name the
 // field, and so does this module, because a file it would read as "nothing to say"
 // would be a silent loss. The checks follow the Rust side's serde shapes, so a file
 // that passes here is one `Fingerprint` accepts (the e2e crate holds both to the
@@ -594,14 +594,14 @@ export function readFingerprint(json: unknown): Reading {
   const old = keys.filter((key) => V1.has(key));
   if (old.length > 0) {
     problems.push(
-      `This is the old flat shape of seleniumbase-rs 0.4 and earlier, which 0.5 refuses: ${old
+      `This is the old flat shape of seleniumbase-rs 0.4 and earlier, which 0.5 and later refuse: ${old
         .map((key) => `\`${key}\` ${V1.get(key) ?? ""}`)
         .join("; ")}.`,
     );
   }
   for (const key of keys) {
     if (!V1.has(key) && !BY_KEY.has(key) && !OTHER.has(key)) {
-      problems.push(`Unknown field \`${key}\`: it is not a setting of a seleniumbase-rs 0.5 Fingerprint.`);
+      problems.push(`Unknown field \`${key}\`: it is not a setting of a seleniumbase-rs 0.7 Fingerprint.`);
     }
   }
 

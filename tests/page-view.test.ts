@@ -242,7 +242,7 @@ describe("importing a file", () => {
     await view.show();
     await view.pick(jsonFile('{ "screen_width": 1920, "screen_height": 1080, "flags": {} }', "old.json"));
     const alert = must(view.root.querySelector('[role="alert"]'));
-    expect(text(alert)).toContain("old.json is not a seleniumbase-rs 0.5 fingerprint.");
+    expect(text(alert)).toContain("old.json is not a seleniumbase-rs 0.7 fingerprint.");
     expect(text(alert)).toContain("`screen_width`");
     expect(text(alert)).toContain("old flat shape");
     expect(view.root.querySelector("section.compare table")).toBeNull();
