@@ -35,7 +35,8 @@ impl Scratch {
         let manifest = r#"[package]
 name = "scratch"
 version = "0.0.0"
-edition = "2021"
+edition = "2024"
+rust-version = "1.99"
 publish = false
 
 [workspace]
