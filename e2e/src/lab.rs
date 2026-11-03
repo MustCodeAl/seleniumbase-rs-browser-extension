@@ -6,7 +6,6 @@
 //! messages it sends through `chrome.runtime.sendMessage` are exactly the ones
 //! the popup's buttons send: the same background code answers them.
 
-use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
