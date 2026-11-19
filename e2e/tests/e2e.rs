@@ -215,7 +215,7 @@ fn require_dist(name: &str) {
 async fn records_exports_and_replays_in_chrome() {
     require_dist("chrome-e2e");
     let server = Server::start();
-    let browser = launch(None).await;
+    let browser = launch(None).await.expect("the browser starts");
     let id = load_extension(&browser, &dist("chrome-e2e"))
         .await
         .expect("Chrome loads the extension");
@@ -482,7 +482,7 @@ async fn inspector_selectors_match_one_element_each() {
     require_dist("chrome-e2e");
     require_dist("chrome");
     let server = Server::start();
-    let browser = launch(None).await;
+    let browser = launch(None).await.expect("the browser starts");
     let id = load_extension(&browser, &dist("chrome-e2e"))
         .await
         .expect("loads e2e");
@@ -874,7 +874,7 @@ async fn edge_loads_the_extension_and_records() {
         return;
     }
     let server = Server::start();
-    let browser = launch(Some(EDGE)).await;
+    let browser = launch(Some(EDGE)).await.expect("the browser starts");
     let id = match load_extension(&browser, &dist("chrome-e2e")).await {
         Ok(id) => id,
         Err(error) => panic!("Edge did not accept the extension: {error}"),

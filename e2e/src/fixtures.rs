@@ -68,6 +68,7 @@ const MESSY: &str = r##"<!doctype html><html><head><meta charset="utf-8"><title>
 </body></html>"##;
 
 /// A running loopback server.
+#[derive(Debug)]
 pub struct Server {
     port: u16,
     log: Arc<Mutex<Vec<String>>>,

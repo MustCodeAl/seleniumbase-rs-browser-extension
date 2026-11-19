@@ -13,6 +13,7 @@ use tokio::process::Command;
 const SEPARATE_TARGET: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/target");
 
 /// A throwaway crate with a `tests/` folder.
+#[derive(Debug)]
 pub struct Scratch {
     dir: TempDir,
 }

@@ -38,10 +38,13 @@ pub fn dist(name: &str) -> PathBuf {
 /// Chrome 137 and later ignore `--load-extension` in branded builds, so the
 /// extension is loaded over the protocol, which this flag allows.
 ///
-/// # Panics
+/// # Errors
 ///
-/// If the browser does not start.
-pub async fn launch(executable: Option<&str>) -> Browser {
+/// [`SeleniumBaseError`](seleniumbase_rs::SeleniumBaseError) when the
+/// options are refused or the browser does not start.
+pub async fn launch(
+    executable: Option<&str>,
+) -> Result<Browser, seleniumbase_rs::SeleniumBaseError> {
     let mut options = LaunchOptions::builder()
         .headless(true)
         .no_sandbox(std::env::var_os("CI").is_some())
@@ -50,9 +53,7 @@ pub async fn launch(executable: Option<&str>) -> Browser {
     if let Some(path) = executable {
         options = options.executable_path(path);
     }
-    Browser::launch(options.build().expect("valid launch options"))
-        .await
-        .expect("the browser starts")
+    Browser::launch(options.build()?).await
 }
 
 /// Loads an unpacked extension and returns its id.
@@ -98,6 +99,14 @@ where
 pub struct Ext {
     pub id: String,
     pub page: Page,
+}
+
+impl std::fmt::Debug for Ext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Ext")
+            .field("id", &self.id)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Ext {
