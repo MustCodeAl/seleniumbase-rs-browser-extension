@@ -95,6 +95,55 @@ where
     }
 }
 
+/// Why a call through the extension page failed.
+#[derive(Debug)]
+pub enum HarnessError {
+    /// The browser or the page refused the call.
+    Browser(seleniumbase_rs::SeleniumBaseError),
+    /// A file or a folder could not be written.
+    Io(std::io::Error),
+    /// The page answered something this harness cannot use.
+    Protocol(String),
+}
+
+impl std::fmt::Display for HarnessError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Browser(error) => write!(formatter, "{error}"),
+            Self::Io(error) => write!(formatter, "{error}"),
+            Self::Protocol(message) => write!(formatter, "{message}"),
+        }
+    }
+}
+
+impl std::error::Error for HarnessError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Browser(error) => Some(error),
+            Self::Io(error) => Some(error),
+            Self::Protocol(_) => None,
+        }
+    }
+}
+
+impl From<seleniumbase_rs::SeleniumBaseError> for HarnessError {
+    fn from(error: seleniumbase_rs::SeleniumBaseError) -> Self {
+        Self::Browser(error)
+    }
+}
+
+impl From<std::io::Error> for HarnessError {
+    fn from(error: std::io::Error) -> Self {
+        Self::Io(error)
+    }
+}
+
+impl HarnessError {
+    fn protocol(message: impl std::fmt::Display) -> Self {
+        Self::Protocol(message.to_string())
+    }
+}
+
 /// An extension page opened as a tab, and the extension's id.
 pub struct Ext {
     pub id: String,
@@ -112,113 +161,123 @@ impl std::fmt::Debug for Ext {
 impl Ext {
     /// Opens `path` of the extension (for example `ui/panel.html`) in a new tab.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// If the page does not open.
-    pub async fn open(browser: &Browser, id: &str, path: &str) -> Self {
+    /// [`HarnessError::Browser`] when the tab cannot be created or attached.
+    /// [`HarnessError::Protocol`] when the browser answers with no target id.
+    pub async fn open(browser: &Browser, id: &str, path: &str) -> Result<Self, HarnessError> {
         // sb_cdp's `goto` and `new_page` refuse the chrome-extension: scheme, so the
         // tab is created at that address through the protocol and then attached to.
         let url = format!("chrome-extension://{id}/{path}");
         let created = browser
             .execute("Target.createTarget", json!({ "url": url }))
-            .await
-            .expect("the extension page opens");
-        let target = created["targetId"].as_str().expect("a target id");
+            .await?;
+        let target = created["targetId"]
+            .as_str()
+            .ok_or_else(|| HarnessError::protocol("Target.createTarget answered no target id"))?;
         let page = browser
             .page(target)
-            .await
-            .expect("the extension page attaches")
+            .await?
             .with_timeout(Duration::from_secs(20));
         eventually("the extension page", Duration::from_secs(15), || async {
             let state = page.evaluate("document.readyState").await.ok()?;
             (state == json!("complete")).then_some(())
         })
         .await;
-        Self {
+        Ok(Self {
             id: id.to_owned(),
             page,
-        }
+        })
     }
 
     /// Sends a message to the background, as the panel does, and returns the reply.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// If the page cannot run the script.
-    pub async fn call(&self, mut message: Value) -> Value {
+    /// [`HarnessError::Browser`] when the page cannot run the script.
+    pub async fn call(&self, mut message: Value) -> Result<Value, HarnessError> {
         if message.get("v").is_none() {
             message["v"] = json!(1);
         }
-        self.page
+        Ok(self
+            .page
             .evaluate(format!("chrome.runtime.sendMessage({message})"))
-            .await
-            .expect("the page runs the message")
+            .await?)
     }
 
     /// Like [`call`](Self::call) for a message of `kind` with `extra` fields,
     /// and checks the reply says `ok`.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// If the background answers with an error.
-    pub async fn ok(&self, kind: &str, extra: Value) -> Value {
+    /// [`HarnessError`] when the page cannot run the message, or the reply is not ok.
+    pub async fn ok(&self, kind: &str, extra: Value) -> Result<Value, HarnessError> {
         let mut message = json!({ "type": kind });
         if let (Some(into), Some(from)) = (message.as_object_mut(), extra.as_object()) {
             for (key, value) in from {
                 into.insert(key.clone(), value.clone());
             }
         }
-        let reply = self.call(message).await;
-        assert_eq!(reply["ok"], json!(true), "{kind} was refused: {reply}");
-        reply
+        let reply = self.call(message).await?;
+        if reply["ok"] != json!(true) {
+            return Err(HarnessError::protocol(format!(
+                "{kind} was refused: {reply}"
+            )));
+        }
+        Ok(reply)
     }
 
     /// The browser's id of the tab whose address starts with `prefix`.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// If no tab matches.
-    pub async fn tab_id_for(&self, prefix: &str) -> i64 {
+    /// [`HarnessError`] when the tabs cannot be listed, the prefix is not JSON, or none match.
+    pub async fn tab_id_for(&self, prefix: &str) -> Result<i64, HarnessError> {
+        let quoted = serde_json::to_string(prefix).map_err(|error| {
+            HarnessError::protocol(format!("the tab prefix is not JSON: {error}"))
+        })?;
         let script = format!(
-            "chrome.tabs.query({{}}).then(tabs => {{ const t = tabs.find(t => (t.url || '').startsWith({})); return t ? t.id : null; }})",
-            serde_json::to_string(prefix).expect("a string")
+            "chrome.tabs.query({{}}).then(tabs => {{ const t = tabs.find(t => (t.url || '').startsWith({quoted})); return t ? t.id : null; }})"
         );
-        self.page
-            .evaluate(script)
-            .await
-            .expect("tabs can be listed")
+        let value = self.page.evaluate(script).await?;
+        value
             .as_i64()
-            .unwrap_or_else(|| panic!("no tab starts with {prefix}"))
+            .ok_or_else(|| HarnessError::protocol(format!("no tab starts with {prefix}")))
     }
 
     /// Saves a screenshot of this page as `<name>.png` in the folder named by
     /// `E2E_SCREENSHOTS`, if that variable is set.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// If the screenshot cannot be taken or written.
-    pub async fn snapshot(&self, name: &str) {
+    /// [`HarnessError`] when the screenshot cannot be taken or written.
+    pub async fn snapshot(&self, name: &str) -> Result<(), HarnessError> {
         let Some(dir) = std::env::var_os("E2E_SCREENSHOTS") else {
-            return;
+            return Ok(());
         };
         let dir = PathBuf::from(dir);
-        std::fs::create_dir_all(&dir).expect("makes the screenshot folder");
-        let png = self.page.screenshot().await.expect("takes the screenshot");
-        std::fs::write(dir.join(format!("{name}.png")), png).expect("writes the screenshot");
+        std::fs::create_dir_all(&dir)?;
+        let png = self.page.screenshot().await?;
+        std::fs::write(dir.join(format!("{name}.png")), png)?;
+        Ok(())
     }
 
     /// The recorder's state.
-    pub async fn recorder(&self) -> Value {
+    ///
+    /// # Errors
+    ///
+    /// [`HarnessError`] when the background refuses the state message.
+    pub async fn recorder(&self) -> Result<Value, HarnessError> {
         self.ok("recorder/state", json!({})).await
     }
 
     /// Runs a script in the extension page and returns its value.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// If the script fails.
-    pub async fn run_script(&self, script: &str) -> Value {
-        self.page.evaluate(script).await.expect("the script runs")
+    /// [`HarnessError::Browser`] when the script fails.
+    pub async fn run_script(&self, script: &str) -> Result<Value, HarnessError> {
+        Ok(self.page.evaluate(script).await?)
     }
 }
 

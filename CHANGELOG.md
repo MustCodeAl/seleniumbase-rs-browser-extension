@@ -8,6 +8,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 - Extension storage is read with `stored` (it was `get`).
 - `launch` returns `Result` instead of panicking. `Server`, `Scratch` and `Ext` implement `Debug`; `Ext` omits the page.
+- `Server::start`, `Scratch::new`, `Scratch::add_test`, `Scratch::cargo`, and `Ext::open`, `call`, `ok`, `tab_id_for`, `snapshot`, `recorder` and `run_script` return `Result` instead of panicking.
 - The source is strict TypeScript (`src/`, `scripts/`, `tests/`), bundled by Bun into the same `dist/` layout.
   `bun run typecheck` and `bun run lint` check it; `any` needs a `// any: <why>` comment.
 - The exports are written for seleniumbase-rs 0.7.0: a pure CDP program starts with `use seleniumbase_rs::tokio;`

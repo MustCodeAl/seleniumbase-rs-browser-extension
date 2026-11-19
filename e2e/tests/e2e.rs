@@ -214,7 +214,7 @@ fn require_dist(name: &str) {
 #[ignore = "launches a real Chrome and loads the extension into it"]
 async fn records_exports_and_replays_in_chrome() {
     require_dist("chrome-e2e");
-    let server = Server::start();
+    let server = Server::start().expect("bind a loopback port");
     let browser = launch(None).await.expect("the browser starts");
     let id = load_extension(&browser, &dist("chrome-e2e"))
         .await
@@ -225,16 +225,27 @@ async fn records_exports_and_replays_in_chrome() {
         .expect("a tab")
         .with_timeout(Duration::from_secs(20));
     page.goto(server.url("/")).await.expect("the fixture loads");
-    let ext = Ext::open(&browser, &id, "ui/panel.html").await;
-    let tab = ext.tab_id_for(&server.base()).await;
+    let ext = Ext::open(&browser, &id, "ui/panel.html")
+        .await
+        .expect("the extension page opens");
+    let tab = ext
+        .tab_id_for(&server.base())
+        .await
+        .expect("the tab is listed");
     let _ = server.take_log();
 
     // The extension answers, and says which browser it was built for.
-    let ping = ext.ok("core/ping", json!({})).await;
+    let ping = ext
+        .ok("core/ping", json!({}))
+        .await
+        .expect("the background accepts it");
     assert_eq!(ping["browser"], json!("chrome"));
 
     // Record: the same messages the popup's buttons send, and real input events.
-    let started = ext.ok("recorder/start", json!({ "tabId": tab })).await;
+    let started = ext
+        .ok("recorder/start", json!({ "tabId": tab }))
+        .await
+        .expect("the background accepts it");
     assert_eq!(started["active"], json!(true));
 
     page.locator("#email")
@@ -283,7 +294,7 @@ async fn records_exports_and_replays_in_chrome() {
         "the content script on the second page",
         Duration::from_secs(10),
         || async {
-            let state = ext.recorder().await;
+            let state = ext.recorder().await.ok()?;
             state["warning"].is_null().then_some(())
         },
     )
@@ -300,9 +311,12 @@ async fn records_exports_and_replays_in_chrome() {
     .await;
     tokio::time::sleep(Duration::from_millis(800)).await;
 
-    let stopped = ext.ok("recorder/stop", json!({})).await;
+    let stopped = ext
+        .ok("recorder/stop", json!({}))
+        .await
+        .expect("the background accepts it");
     assert_eq!(stopped["active"], json!(false));
-    let state = ext.recorder().await;
+    let state = ext.recorder().await.expect("the recorder answers");
     let types = step_types(&state);
     println!("recorded steps: {types:?}");
     assert_eq!(
@@ -331,14 +345,16 @@ async fn records_exports_and_replays_in_chrome() {
         &id,
         &format!("ui/panel.html?tabId={tab}&view=record"),
     )
-    .await;
+    .await
+    .expect("the extension page opens");
     eventually(
         "the steps in the panel",
         Duration::from_secs(10),
         || async {
             let count = panel
                 .run_script("document.querySelectorAll('#view-record ol.steps li').length")
-                .await;
+                .await
+                .ok()?;
             (count == json!(9)).then_some(())
         },
     )
@@ -346,10 +362,14 @@ async fn records_exports_and_replays_in_chrome() {
     assert_eq!(
         panel
             .run_script("[...document.querySelectorAll('[role=tab]')].map(t => t.textContent)")
-            .await,
+            .await
+            .expect("the script runs"),
         json!(["Record", "Inspect", "Page"])
     );
-    panel.snapshot("panel-record").await;
+    panel
+        .snapshot("panel-record")
+        .await
+        .expect("the screenshot is saved");
 
     // The record phase, as the page saw it.
     let recorded_log = server.take_log();
@@ -371,7 +391,8 @@ async fn records_exports_and_replays_in_chrome() {
             "recorder/export",
             json!({ "format": "cdp", "name": "e2e flow", "entry": "test" }),
         )
-        .await;
+        .await
+        .expect("the background accepts it");
     let cdp_text = cdp["text"].as_str().expect("text").to_owned();
     println!("--- exported (pure CDP) ---\n{cdp_text}");
     assert_eq!(cdp["filename"], json!("e2e_flow.rs"));
@@ -400,7 +421,8 @@ async fn records_exports_and_replays_in_chrome() {
             "recorder/export",
             json!({ "format": "basecase", "name": "e2e flow", "entry": "test" }),
         )
-        .await;
+        .await
+        .expect("the background accepts it");
     let basecase_text = basecase["text"].as_str().expect("text").to_owned();
     println!("--- exported (BaseCase) ---\n{basecase_text}");
     assert!(basecase_text.contains("sb.select_option_by_text(\"#color\", \"Green\").await?;"));
@@ -411,7 +433,8 @@ async fn records_exports_and_replays_in_chrome() {
             "recorder/export",
             json!({ "format": "devtools", "name": "e2e flow" }),
         )
-        .await;
+        .await
+        .expect("the background accepts it");
     let replay_json: Value =
         serde_json::from_str(replay["text"].as_str().expect("text")).expect("JSON");
     assert_eq!(replay_json["title"], json!("e2e flow"));
@@ -423,10 +446,17 @@ async fn records_exports_and_replays_in_chrome() {
 
     // Compile the exported test and run it against the same pages. The only edit
     // is that its Chrome is headless, so it opens no window on this desktop.
-    let scratch = Scratch::new();
-    scratch.add_test("recorded", &headless(&cdp_text));
-    scratch.add_test("recorded_basecase", &basecase_text);
-    let (built, output) = scratch.cargo(&["test", "--no-run"], &[]).await;
+    let scratch = Scratch::new().expect("the scratch crate is created");
+    scratch
+        .add_test("recorded", &headless(&cdp_text))
+        .expect("writes the test");
+    scratch
+        .add_test("recorded_basecase", &basecase_text)
+        .expect("writes the test");
+    let (built, output) = scratch
+        .cargo(&["test", "--no-run"], &[])
+        .await
+        .expect("cargo starts");
     assert!(built, "the exported tests do not compile:\n{output}");
     println!("the exported pure CDP test and BaseCase test compile");
 
@@ -435,7 +465,8 @@ async fn records_exports_and_replays_in_chrome() {
             &["test", "--test", "recorded", "--", "--nocapture"],
             &[("RECORDED_PASSWORD", "hunter2")],
         )
-        .await;
+        .await
+        .expect("cargo starts");
     assert!(passed, "the exported test failed:\n{output}");
     println!("the exported pure CDP test passed against the fixture");
     let mut replayed_log = server.take_log();
@@ -481,7 +512,7 @@ const PROBES: &[&str] = &[
 async fn inspector_selectors_match_one_element_each() {
     require_dist("chrome-e2e");
     require_dist("chrome");
-    let server = Server::start();
+    let server = Server::start().expect("bind a loopback port");
     let browser = launch(None).await.expect("the browser starts");
     let id = load_extension(&browser, &dist("chrome-e2e"))
         .await
@@ -495,14 +526,21 @@ async fn inspector_selectors_match_one_element_each() {
         .expect("a tab")
         .with_timeout(Duration::from_secs(20));
     page.goto(server.url("/messy")).await.expect("loads");
-    let ext = Ext::open(&browser, &id, "ui/panel.html").await;
-    let tab = ext.tab_id_for(&server.base()).await;
+    let ext = Ext::open(&browser, &id, "ui/panel.html")
+        .await
+        .expect("the extension page opens");
+    let tab = ext
+        .tab_id_for(&server.base())
+        .await
+        .expect("the tab is listed");
 
     let mut checked = 0;
     let mut unique = 0;
     let mut previous = 0_u64;
     for probe in PROBES {
-        ext.ok("inspector/pick", json!({ "tabId": tab })).await;
+        ext.ok("inspector/pick", json!({ "tabId": tab }))
+            .await
+            .expect("the background accepts it");
         tokio::time::sleep(Duration::from_millis(300)).await;
         page.locator(format!("[data-probe=\"{probe}\"]"))
             .click()
@@ -512,7 +550,7 @@ async fn inspector_selectors_match_one_element_each() {
             &format!("the pick of {probe}"),
             Duration::from_secs(10),
             || async {
-                let reply = ext.ok("inspector/last", json!({})).await;
+                let reply = ext.ok("inspector/last", json!({})).await.ok()?;
                 let last = reply["last"].clone();
                 (last["at"].as_u64()? > previous).then_some(last)
             },
@@ -575,7 +613,10 @@ async fn inspector_selectors_match_one_element_each() {
     assert!(unique >= PROBES.len() * 2);
 
     // What this page sees, from the page's own world, as a seleniumbase-rs Fingerprint.
-    let report = ext.ok("inspector/probe", json!({ "tabId": tab })).await;
+    let report = ext
+        .ok("inspector/probe", json!({ "tabId": tab }))
+        .await
+        .expect("the background accepts it");
     let probe = &report["probe"];
     println!("page report: {probe:#}");
     // The installed Chrome sets the version: read its major from the user agent, so a run
@@ -620,15 +661,21 @@ async fn inspector_selectors_match_one_element_each() {
 
     // The build without host access (what a store would ship): it works, and it
     // says plainly that it has no access to the page instead of failing quietly.
-    let store = Ext::open(&browser, &store_id, "ui/panel.html").await;
-    let ping = store.ok("core/ping", json!({})).await;
+    let store = Ext::open(&browser, &store_id, "ui/panel.html")
+        .await
+        .expect("the extension page opens");
+    let ping = store
+        .ok("core/ping", json!({}))
+        .await
+        .expect("the background accepts it");
     assert!(ping["name"]
         .as_str()
         .expect("name")
         .starts_with("seleniumbase-rs Companion"));
     let denied = store
         .call(json!({ "type": "inspector/probe", "tabId": tab }))
-        .await;
+        .await
+        .expect("the page runs the message");
     println!("store build, no access: {denied}");
     assert_eq!(denied["ok"], json!(false));
     assert!(denied["error"]
@@ -643,13 +690,12 @@ async fn inspector_selectors_match_one_element_each() {
             &id,
             &format!("ui/panel.html?tabId={tab}&view={view}"),
         )
-        .await;
+        .await
+        .expect("the extension page opens");
         tokio::time::sleep(Duration::from_secs(6)).await;
-        let shown = panel
-            .run_script(&format!(
-                "document.querySelector('#notice').textContent + ' | ' + document.querySelector('#view-{view}').innerText.slice(0, 300)"
-            ))
-            .await;
+        let shown = panel.run_script(&format!(
+            "document.querySelector('#notice').textContent + ' | ' + document.querySelector('#view-{view}').innerText.slice(0, 300)"
+        )).await.expect("the script runs");
         println!("the {view} view shows: {shown}");
         eventually(
             &format!("the {view} view"),
@@ -659,12 +705,16 @@ async fn inspector_selectors_match_one_element_each() {
                     .run_script(&format!(
                         "document.querySelectorAll('#view-{view} .row, #view-{view} table tr').length"
                     ))
-                    .await;
+                    .await
+                    .ok()?;
                 (shown.as_i64()? > 3).then_some(())
             },
         )
         .await;
-        panel.snapshot(&format!("panel-{view}")).await;
+        panel
+            .snapshot(&format!("panel-{view}"))
+            .await
+            .expect("the screenshot is saved");
     }
 
     // The Page tab's buttons, in the real extension page. Export saves a file that
@@ -675,14 +725,16 @@ async fn inspector_selectors_match_one_element_each() {
         &id,
         &format!("ui/panel.html?tabId={tab}&view=page"),
     )
-    .await;
+    .await
+    .expect("the extension page opens");
     eventually(
         "the Page tab's buttons",
         Duration::from_secs(20),
         || async {
             let names = panel
                 .run_script("[...document.querySelectorAll('#view-page button')].map(b => b.getAttribute('aria-label') || b.textContent).join('|')")
-                .await;
+                .await
+                .ok()?;
             let names = names.as_str()?.to_owned();
             [
                 "Capture again",
@@ -696,25 +748,21 @@ async fn inspector_selectors_match_one_element_each() {
         },
     )
     .await;
-    let saved = panel
-        .run_script(
-            r#"(async () => {
-                const saved = [];
-                const blobs = new Map();
-                const click = HTMLAnchorElement.prototype.click;
-                const create = URL.createObjectURL;
-                HTMLAnchorElement.prototype.click = function () { saved.push({ name: this.download, href: this.href }); };
-                URL.createObjectURL = (blob) => { const url = create.call(URL, blob); blobs.set(url, blob); return url; };
-                try {
-                    [...document.querySelectorAll('#view-page button')].find(b => b.textContent === 'Export').click();
-                } finally {
-                    HTMLAnchorElement.prototype.click = click;
-                    URL.createObjectURL = create;
-                }
-                return { name: saved[0].name, text: await blobs.get(saved[0].href).text() };
-            })()"#,
-        )
-        .await;
+    let saved = panel.run_script(r#"(async () => {
+        const saved = [];
+        const blobs = new Map();
+        const click = HTMLAnchorElement.prototype.click;
+        const create = URL.createObjectURL;
+        HTMLAnchorElement.prototype.click = function () { saved.push({ name: this.download, href: this.href }); };
+        URL.createObjectURL = (blob) => { const url = create.call(URL, blob); blobs.set(url, blob); return url; };
+        try {
+            [...document.querySelectorAll('#view-page button')].find(b => b.textContent === 'Export').click();
+        } finally {
+            HTMLAnchorElement.prototype.click = click;
+            URL.createObjectURL = create;
+        }
+        return { name: saved[0].name, text: await blobs.get(saved[0].href).text() };
+    })()"#).await.expect("the script runs");
     let file_name = saved["name"].as_str().expect("a file name");
     let file_text = saved["text"].as_str().expect("the file's text");
     println!("exported {file_name}:\n{file_text}");
@@ -728,29 +776,30 @@ async fn inspector_selectors_match_one_element_each() {
     let compared = panel
         .run_script(&format!(
             r#"(async () => {{
-                const pick = async (name, text) => {{
-                    const input = document.querySelector('#view-page input[type=file]');
-                    const files = new DataTransfer();
-                    files.items.add(new File([text], name, {{ type: 'application/json' }}));
-                    input.files = files.files;
-                    input.dispatchEvent(new Event('change'));
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                    const alert = document.querySelector('#view-page [role=alert]');
-                    const status = document.querySelector('#view-page section.compare [role=status]');
-                    return {{
-                        alert: alert ? alert.innerText : null,
-                        rows: document.querySelectorAll('#view-page section.compare tbody tr').length,
-                        summary: status ? status.innerText : null,
-                    }};
-                }};
+            const pick = async (name, text) => {{
+                const input = document.querySelector('#view-page input[type=file]');
+                const files = new DataTransfer();
+                files.items.add(new File([text], name, {{ type: 'application/json' }}));
+                input.files = files.files;
+                input.dispatchEvent(new Event('change'));
+                await new Promise(resolve => setTimeout(resolve, 500));
+                const alert = document.querySelector('#view-page [role=alert]');
+                const status = document.querySelector('#view-page section.compare [role=status]');
                 return {{
-                    old: await pick('old.json', '{{"screen_width":1920,"flags":{{}}}}'),
-                    same: await pick('same.json', {text}),
+                    alert: alert ? alert.innerText : null,
+                    rows: document.querySelectorAll('#view-page section.compare tbody tr').length,
+                    summary: status ? status.innerText : null,
                 }};
-            }})()"#,
+            }};
+            return {{
+                old: await pick('old.json', '{{"screen_width":1920,"flags":{{}}}}'),
+                same: await pick('same.json', {text}),
+            }};
+        }})()"#,
             text = serde_json::to_string(file_text).expect("a string"),
         ))
-        .await;
+        .await
+        .expect("the script runs");
     println!("import: {compared}");
     let refused = compared["old"]["alert"]
         .as_str()
@@ -767,11 +816,16 @@ async fn inspector_selectors_match_one_element_each() {
         summary.contains(" match, 0 differ, 0 not observable."),
         "{summary}"
     );
-    panel.snapshot("panel-page-import").await;
+    panel
+        .snapshot("panel-page-import")
+        .await
+        .expect("the screenshot is saved");
 
     // The DevTools Recorder plugin page, outside DevTools: the registration needs
     // a real DevTools, but the plugin it registers can be called.
-    let plugin = Ext::open(&browser, &id, "devtools-recorder/devtools.html").await;
+    let plugin = Ext::open(&browser, &id, "devtools-recorder/devtools.html")
+        .await
+        .expect("the extension page opens");
     let recording = json!({
         "title": "From DevTools",
         "steps": [
@@ -785,7 +839,8 @@ async fn inspector_selectors_match_one_element_each() {
     });
     let exported_cdp = plugin
         .run_script(&format!("__sbrsRecorderPlugins.cdp.stringify({recording})"))
-        .await;
+        .await
+        .expect("the script runs");
     let exported_cdp = exported_cdp.as_str().expect("a string").to_owned();
     println!("--- DevTools Recorder export (pure CDP) ---\n{exported_cdp}");
     assert!(exported_cdp.contains("page.locator(\"#go\").click().await?;"));
@@ -795,11 +850,10 @@ async fn inspector_selectors_match_one_element_each() {
         .run_script(&format!(
             "__sbrsRecorderPlugins.basecase.stringify({recording})"
         ))
-        .await;
+        .await
+        .expect("the script runs");
     let exported_base = exported_base.as_str().expect("a string").to_owned();
-    let one_step = plugin
-        .run_script("__sbrsRecorderPlugins.cdp.stringifyStep({ type: 'click', target: 'main', selectors: [['#go']], offsetX: 1, offsetY: 1 })")
-        .await;
+    let one_step = plugin.run_script("__sbrsRecorderPlugins.cdp.stringifyStep({ type: 'click', target: 'main', selectors: [['#go']], offsetX: 1, offsetY: 1 })").await.expect("the script runs");
     assert_eq!(one_step, json!("page.locator(\"#go\").click().await?;"));
 
     // Hostile text through the real, bundled generators: put steps with quotes,
@@ -818,25 +872,29 @@ async fn inspector_selectors_match_one_element_each() {
     ext.run_script(&format!(
         "chrome.storage.local.set({{ 'recorder.steps': {steps} }})"
     ))
-    .await;
+    .await
+    .expect("the script runs");
     let hostile_cdp = ext
         .ok(
             "recorder/export",
             json!({ "format": "cdp", "name": hostile, "entry": "test" }),
         )
-        .await;
+        .await
+        .expect("the background accepts it");
     let hostile_base = ext
         .ok(
             "recorder/export",
             json!({ "format": "basecase", "name": hostile, "entry": "main" }),
         )
-        .await;
+        .await
+        .expect("the background accepts it");
     let hostile_json = ext
         .ok(
             "recorder/export",
             json!({ "format": "devtools", "name": hostile }),
         )
-        .await;
+        .await
+        .expect("the background accepts it");
     serde_json::from_str::<Value>(hostile_json["text"].as_str().expect("text"))
         .expect("the JSON export is JSON");
     let hostile_cdp = hostile_cdp["text"].as_str().expect("text").to_owned();
@@ -850,12 +908,23 @@ async fn inspector_selectors_match_one_element_each() {
 
     browser.close().await.expect("Chrome closes");
 
-    let scratch = Scratch::new();
-    scratch.add_test("devtools_cdp", &exported_cdp);
-    scratch.add_test("devtools_basecase", &exported_base);
-    scratch.add_test("hostile_cdp", &hostile_cdp);
-    scratch.add_test("hostile_basecase", &hostile_base);
-    let (built, output) = scratch.cargo(&["test", "--no-run"], &[]).await;
+    let scratch = Scratch::new().expect("the scratch crate is created");
+    scratch
+        .add_test("devtools_cdp", &exported_cdp)
+        .expect("writes the test");
+    scratch
+        .add_test("devtools_basecase", &exported_base)
+        .expect("writes the test");
+    scratch
+        .add_test("hostile_cdp", &hostile_cdp)
+        .expect("writes the test");
+    scratch
+        .add_test("hostile_basecase", &hostile_base)
+        .expect("writes the test");
+    let (built, output) = scratch
+        .cargo(&["test", "--no-run"], &[])
+        .await
+        .expect("cargo starts");
     assert!(built, "an export does not compile:\n{output}");
     println!("DevTools Recorder exports and hostile-text exports compile");
     // Keep the hostile exports where a person can read them.
@@ -873,7 +942,7 @@ async fn edge_loads_the_extension_and_records() {
         eprintln!("Microsoft Edge is not installed; nothing to check");
         return;
     }
-    let server = Server::start();
+    let server = Server::start().expect("bind a loopback port");
     let browser = launch(Some(EDGE)).await.expect("the browser starts");
     let id = match load_extension(&browser, &dist("chrome-e2e")).await {
         Ok(id) => id,
@@ -885,17 +954,27 @@ async fn edge_loads_the_extension_and_records() {
         .expect("a tab")
         .with_timeout(Duration::from_secs(20));
     page.goto(server.url("/")).await.expect("loads");
-    let ext = Ext::open(&browser, &id, "ui/panel.html").await;
-    let ping = ext.ok("core/ping", json!({})).await;
+    let ext = Ext::open(&browser, &id, "ui/panel.html")
+        .await
+        .expect("the extension page opens");
+    let ping = ext
+        .ok("core/ping", json!({}))
+        .await
+        .expect("the background accepts it");
     println!("Edge: {ping}");
-    let tab = ext.tab_id_for(&server.base()).await;
-    ext.ok("recorder/start", json!({ "tabId": tab })).await;
+    let tab = ext
+        .tab_id_for(&server.base())
+        .await
+        .expect("the tab is listed");
+    ext.ok("recorder/start", json!({ "tabId": tab }))
+        .await
+        .expect("the background accepts it");
     page.locator("[data-test=go]")
         .click()
         .await
         .expect("press Go");
     let types = eventually("a click step in Edge", Duration::from_secs(10), || async {
-        let types = step_types(&ext.recorder().await);
+        let types = step_types(&ext.recorder().await.ok()?);
         types.contains(&"click".to_owned()).then_some(types)
     })
     .await;

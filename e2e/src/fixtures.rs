@@ -114,13 +114,12 @@ fn respond(stream: &mut std::net::TcpStream, status: &str, content_type: &str, b
 impl Server {
     /// Starts serving on a free loopback port.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// If no loopback port can be bound.
-    #[must_use]
-    pub fn start() -> Self {
-        let listener = TcpListener::bind("127.0.0.1:0").expect("bind a loopback port");
-        let port = listener.local_addr().expect("bound address").port();
+    /// [`std::io::Error`] when no loopback port can be bound.
+    pub fn start() -> Result<Self, std::io::Error> {
+        let listener = TcpListener::bind("127.0.0.1:0")?;
+        let port = listener.local_addr()?.port();
         let log: Arc<Mutex<Vec<String>>> = Arc::default();
         let shared = Arc::clone(&log);
         thread::spawn(move || {
@@ -147,7 +146,9 @@ impl Server {
                         }
                         "/log" => {
                             if let Some(event) = query.strip_prefix("e=") {
-                                log.lock().expect("log lock").push(decode(event));
+                                log.lock()
+                                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                                    .push(decode(event));
                             }
                             respond(&mut stream, "204 No Content", "text/plain", "");
                         }
@@ -156,7 +157,7 @@ impl Server {
                 });
             }
         });
-        Self { port, log }
+        Ok(Self { port, log })
     }
 
     /// The server's address for `path`.
@@ -172,12 +173,14 @@ impl Server {
     }
 
     /// Takes the events the pages have logged since the last call.
-    ///
-    /// # Panics
-    ///
-    /// If the log lock is poisoned.
+    /// A poisoned lock keeps the events it still holds.
     #[must_use]
     pub fn take_log(&self) -> Vec<String> {
-        std::mem::take(&mut *self.log.lock().expect("log lock"))
+        std::mem::take(
+            &mut *self
+                .log
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+        )
     }
 }

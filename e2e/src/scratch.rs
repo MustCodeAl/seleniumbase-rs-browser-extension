@@ -18,21 +18,14 @@ pub struct Scratch {
     dir: TempDir,
 }
 
-impl Default for Scratch {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl Scratch {
     /// Creates the crate.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// If the temporary folder cannot be written.
-    #[must_use]
-    pub fn new() -> Self {
-        let dir = tempfile::tempdir().expect("a temporary folder");
+    /// [`std::io::Error`] when the temporary folder or its files cannot be written.
+    pub fn new() -> Result<Self, std::io::Error> {
+        let dir = tempfile::tempdir()?;
         let manifest = r#"[package]
 name = "scratch"
 version = "0.0.0"
@@ -46,35 +39,39 @@ publish = false
 seleniumbase-rs = { git = "https://github.com/MustCodeAl/seleniumbase-rs", tag = "v0.7.0", features = ["test-util"] }
 # No tokio line: the exports import it with `use seleniumbase_rs::tokio;`.
 "#;
-        std::fs::write(dir.path().join("Cargo.toml"), manifest).expect("writes the manifest");
-        std::fs::create_dir_all(dir.path().join("src")).expect("makes src");
-        std::fs::write(dir.path().join("src/lib.rs"), "").expect("writes lib.rs");
-        std::fs::create_dir_all(dir.path().join("tests")).expect("makes tests");
+        std::fs::write(dir.path().join("Cargo.toml"), manifest)?;
+        std::fs::create_dir_all(dir.path().join("src"))?;
+        std::fs::write(dir.path().join("src/lib.rs"), "")?;
+        std::fs::create_dir_all(dir.path().join("tests"))?;
         let lock = Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.lock");
         if lock.exists() {
-            std::fs::copy(lock, dir.path().join("Cargo.lock")).expect("copies the lock file");
+            std::fs::copy(lock, dir.path().join("Cargo.lock"))?;
         }
-        Self { dir }
+        Ok(Self { dir })
     }
 
     /// Writes `tests/<name>.rs`.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// If the file cannot be written.
-    pub fn add_test(&self, name: &str, source: &str) -> PathBuf {
+    /// [`std::io::Error`] when the test file cannot be written.
+    pub fn add_test(&self, name: &str, source: &str) -> Result<PathBuf, std::io::Error> {
         let path = self.dir.path().join("tests").join(format!("{name}.rs"));
-        std::fs::write(&path, source).expect("writes the test");
-        path
+        std::fs::write(&path, source)?;
+        Ok(path)
     }
 
     /// Runs `cargo <args>` in the crate, offline, with the settings every build
     /// here uses. Returns whether it succeeded and what it printed.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// If `cargo` cannot be started.
-    pub async fn cargo(&self, args: &[&str], env: &[(&str, &str)]) -> (bool, String) {
+    /// [`std::io::Error`] when `cargo` cannot be started.
+    pub async fn cargo(
+        &self,
+        args: &[&str],
+        env: &[(&str, &str)],
+    ) -> Result<(bool, String), std::io::Error> {
         let target =
             std::env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| SEPARATE_TARGET.to_owned());
         let mut command = Command::new("cargo");
@@ -93,10 +90,10 @@ seleniumbase-rs = { git = "https://github.com/MustCodeAl/seleniumbase-rs", tag =
         for (key, value) in env {
             command.env(key, value);
         }
-        let output = command.output().await.expect("cargo starts");
+        let output = command.output().await?;
         let mut text = String::from_utf8_lossy(&output.stdout).into_owned();
         text.push_str(&String::from_utf8_lossy(&output.stderr));
-        (output.status.success(), text)
+        Ok((output.status.success(), text))
     }
 }
 
