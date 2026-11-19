@@ -14,7 +14,7 @@ export const local: Area = ext.storage.local;
 export const session: Area = ext.storage.session ?? ext.storage.local;
 
 /** The value stored under `key`, or `fallback`. The caller names the type it stored there with `set`. */
-export async function get<T>(area: Area, key: string, fallback: T): Promise<T> {
+export async function stored<T>(area: Area, key: string, fallback: T): Promise<T> {
   const found: Record<string, unknown> = await area.get(key);
   const value = found[key];
   return value === undefined ? fallback : (value as T);

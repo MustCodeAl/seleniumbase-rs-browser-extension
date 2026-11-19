@@ -6,6 +6,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Changed
 
+- Extension storage is read with `stored` (it was `get`).
 - The source is strict TypeScript (`src/`, `scripts/`, `tests/`), bundled by Bun into the same `dist/` layout.
   `bun run typecheck` and `bun run lint` check it; `any` needs a `// any: <why>` comment.
 - The exports are written for seleniumbase-rs 0.7.0: a pure CDP program starts with `use seleniumbase_rs::tokio;`

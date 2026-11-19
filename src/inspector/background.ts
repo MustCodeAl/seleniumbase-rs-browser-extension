@@ -8,7 +8,7 @@ import { isRecord } from "../shared/guards.ts";
 import { MSG } from "../shared/protocol.ts";
 import type { PickResult } from "../shared/pickview.ts";
 import { broadcast, registerHandler } from "../background/router.ts";
-import { accessError, get, injectFiles, session, set } from "../background/store.ts";
+import { accessError, injectFiles, session, set, stored } from "../background/store.ts";
 import { probePage } from "./probe.ts";
 
 const K_LAST = "inspector.last";
@@ -32,7 +32,7 @@ registerHandler(MSG.INSPECTOR_PICK, async ({ tabId }) => {
   return {};
 });
 
-registerHandler(MSG.INSPECTOR_LAST, async () => ({ last: await get<PickResult | null>(session, K_LAST, null) }));
+registerHandler(MSG.INSPECTOR_LAST, async () => ({ last: await stored<PickResult | null>(session, K_LAST, null) }));
 
 registerHandler(
   MSG.INSPECTOR_PICKED,

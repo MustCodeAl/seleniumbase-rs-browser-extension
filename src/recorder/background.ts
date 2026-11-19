@@ -23,7 +23,7 @@ import {
   step,
 } from "../shared/steps.ts";
 import { broadcast, registerHandler } from "../background/router.ts";
-import { RECORDABLE, accessError, get, injectFiles, local, makeLock, remove, session, set } from "../background/store.ts";
+import { RECORDABLE, accessError, injectFiles, local, makeLock, remove, session, set, stored } from "../background/store.ts";
 
 const K_STEPS = "recorder.steps";
 const K_ACTIVE = "recorder.active";
@@ -59,10 +59,10 @@ const locked = makeLock();
 
 async function load(): Promise<State> {
   const [steps, active, settings, meta] = await Promise.all([
-    get<Step[]>(local, K_STEPS, []),
-    get<Active | null>(session, K_ACTIVE, null),
-    get<Partial<RecorderSettings>>(local, K_SETTINGS, DEFAULT_SETTINGS),
-    get<Meta>(local, K_META, {}),
+    stored<Step[]>(local, K_STEPS, []),
+    stored<Active | null>(session, K_ACTIVE, null),
+    stored<Partial<RecorderSettings>>(local, K_SETTINGS, DEFAULT_SETTINGS),
+    stored<Meta>(local, K_META, {}),
   ]);
   return { steps, active, settings: { ...DEFAULT_SETTINGS, ...settings }, meta };
 }
