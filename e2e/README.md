@@ -1,6 +1,6 @@
 # End-to-end tests
 
-A Rust crate (`sbrs-companion-e2e`, built against seleniumbase-rs `main`, in `Cargo.toml` and in the scratch crate
+A Rust crate (`sbrs-companion-e2e`, built against seleniumbase-rs `v0.8.5`, in `Cargo.toml` and in the scratch crate
 of `src/scratch.rs`) that loads the built extension into a real Chrome (and Edge) through seleniumbase-rs's pure CDP
 engine, and a shell check that loads it into a real Firefox in Docker.
 
