@@ -43,7 +43,11 @@ fn parity_with_the_action_recorder() {
     .expect("valid JSON");
     let mut recorder = ActionRecorder::default();
     for action in &actions {
-        recorder.record(RecordedCommand::from_parts(action["name"].as_str().expect("a name"), action["target"].as_str(), action["value"].as_str()));
+        recorder.record(RecordedCommand::from_parts(
+            action["name"].as_str().expect("a name"),
+            action["target"].as_str(),
+            action["value"].as_str(),
+        ));
     }
     let cases = [
         (
