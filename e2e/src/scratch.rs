@@ -36,7 +36,7 @@ publish = false
 [workspace]
 
 [dependencies]
-seleniumbase-rs = { git = "https://github.com/MustCodeAl/seleniumbase-rs", tag = "v0.8.5", features = ["test-util"] }
+seleniumbase-rs = { git = "https://github.com/MustCodeAl/seleniumbase-rs", tag = "v0.8.6", features = ["test-util"] }
 # No tokio line: the exports import it with `use seleniumbase_rs::tokio;`.
 "#;
         std::fs::write(dir.path().join("Cargo.toml"), manifest)?;
