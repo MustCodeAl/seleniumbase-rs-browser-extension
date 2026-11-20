@@ -19,7 +19,7 @@ use sbrs_companion_e2e::lab::{
     dist, eventually, launch, load_extension, repo_root, step_types, Ext, EDGE,
 };
 use sbrs_companion_e2e::scratch::{headless, Scratch};
-use seleniumbase_rs::api::recorder::ActionRecorder;
+use seleniumbase_rs::api::recorder::{ActionRecorder, RecordedCommand};
 use seleniumbase_rs::sb_cdp::Key;
 use seleniumbase_rs::{BrowserType, Fingerprint, OsType, ScreenSize};
 use serde_json::{json, Value};
@@ -43,11 +43,7 @@ fn parity_with_the_action_recorder() {
     .expect("valid JSON");
     let mut recorder = ActionRecorder::default();
     for action in &actions {
-        recorder.record(
-            action["name"].as_str().expect("a name"),
-            action["target"].as_str(),
-            action["value"].as_str(),
-        );
+        recorder.record(RecordedCommand::from_parts(action["name"].as_str().expect("a name"), action["target"].as_str(), action["value"].as_str()));
     }
     let cases = [
         (
