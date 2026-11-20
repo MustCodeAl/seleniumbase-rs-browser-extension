@@ -21,7 +21,7 @@ The Rust it writes is for seleniumbase-rs 0.7.0. A pure CDP program imports Toki
 `use seleniumbase_rs::tokio;` and a BaseCase program with `use seleniumbase_rs::{tokio, BaseCase, BrowserConfig};`,
 both before `#[tokio::main]` or `#[tokio::test]`. `Locator::type_text` empties a field before it types, so a
 recorded field is typed with that call alone; the text assertions take the text first; and the Page tab's JSON is
-the `Fingerprint` that 0.7.0 reads (fingerprint API v2). `e2e/` compiles every export against tag `v0.7.0`, and
+the `Fingerprint` that 0.7.0 reads (fingerprint API v2). `e2e/` compiles every export against seleniumbase-rs `main`, and
 `tests/golden/` holds what its `ActionRecorder` writes for the actions both know.
 
 ### The Page tab: capture, copy, export, import

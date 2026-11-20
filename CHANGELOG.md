@@ -6,6 +6,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Changed
 
+- The e2e crate and its scratch crate track seleniumbase-rs `main` (the lockfile holds the commit) instead of tag `v0.8.0`.
 - Extension storage is read with `stored` (it was `get`).
 - `launch` returns `Result` instead of panicking. `Server`, `Scratch` and `Ext` implement `Debug`; `Ext` omits the page.
 - `Server::start`, `Scratch::new`, `Scratch::add_test`, `Scratch::cargo`, and `Ext::open`, `call`, `ok`, `tab_id_for`, `snapshot`, `recorder` and `run_script` return `Result` instead of panicking.
