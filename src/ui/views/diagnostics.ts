@@ -7,7 +7,7 @@ import { errorText } from "../../shared/guards.ts";
 import { MSG, type Replies } from "../../shared/protocol.ts";
 import { copyButton } from "../../shared/pickview.ts";
 import { evaluateAntiBot, type AntiBotSummary } from "../../shared/diagnostics.ts";
-import { generateRustContextOptions } from "../../shared/rust-context.ts";
+import { generateRustContextOptions, generateRustAntibotDetectorCode } from "../../shared/rust-context.ts";
 import { registerView } from "../registry.ts";
 
 const STATUS_CLASS: Record<string, string> = {
@@ -122,6 +122,36 @@ registerView({
       );
     }
 
+    function renderAntibotDetectorSection(reportData: Replies[typeof MSG.INSPECTOR_PROBE]): HTMLElement {
+      const code = generateRustAntibotDetectorCode(reportData.probe.url ?? "https://example.com");
+      const copyBtn = copyButton(code, "Rust AntibotDetector Script");
+      const exportBtn = h("button", {
+        type: "button",
+        text: "Export detect_bot.rs",
+        title: "Download detect_bot.rs",
+        "aria-label": "Download detect_bot.rs",
+        onclick: () => {
+          downloadFile({
+            filename: "detect_bot.rs",
+            mime: "text/x-rust",
+            text: code,
+          });
+        },
+      });
+
+      return h(
+        "section",
+        { style: "margin-top: 18px;" },
+        h("h3", { text: "Rust antibot-detector Plugin Script" }),
+        h(
+          "p",
+          { class: "sub", text: "Ready-to-run Rust script using the `antibot-detector` plugin crate (Cloudflare, DataDome, Akamai, Kasada, PerimeterX, etc.)." },
+        ),
+        h("div", { class: "bar" }, copyBtn, exportBtn),
+        h("pre", { style: "max-height: 200px; font-size: 11px;" }, h("code", { text: code })),
+      );
+    }
+
     function draw(): void {
       const runBtn = h("button", {
         type: "button",
@@ -155,6 +185,7 @@ registerView({
         parts.push(renderSummary(summary));
         parts.push(h("div", {}, summary.items.map(renderItem)));
         parts.push(renderRustSection(report));
+        parts.push(renderAntibotDetectorSection(report));
       } else {
         parts.push(
           h("p", {

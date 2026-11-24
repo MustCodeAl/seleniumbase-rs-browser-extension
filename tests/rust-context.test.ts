@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { generateRustContextOptions } from "../src/shared/rust-context.ts";
+import { generateRustContextOptions, generateRustAntibotDetectorCode } from "../src/shared/rust-context.ts";
 import type { PageProbe } from "../src/shared/fingerprint.ts";
 
 describe("generateRustContextOptions", () => {
@@ -52,5 +52,13 @@ describe("generateRustContextOptions", () => {
 
     const res = generateRustContextOptions(probe);
     expect(res.code).toContain('\\"Custom\\nAgent\\"');
+  });
+
+  test("generates ready-to-run Rust script with antibot-detector plugin", () => {
+    const code = generateRustAntibotDetectorCode("https://example.com/protected");
+    expect(code).toContain("use antibot_detector::AntibotDetector;");
+    expect(code).toContain("let detector = AntibotDetector::new();");
+    expect(code).toContain("let detections = detector.detect(&page).await?;");
+    expect(code).toContain('https://example.com/protected');
   });
 });

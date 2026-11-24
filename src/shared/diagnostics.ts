@@ -1,8 +1,39 @@
 // Anti-bot and fingerprint leak diagnostics.
-// Evaluates navigator.webdriver, CDP automation flags (window.cdc_*),
-// WebGL spoofing/tampering, canvas noise/determinism, and Cloudflare Turnstile presence.
+// Aligns 1:1 with the `antibot-detector` standalone plugin crate (plugins/antibot-detector).
+// Evaluates client-side leaks (navigator.webdriver, window.cdc_*, WebGL, Canvas noise)
+// and detects 10+ anti-bot & challenge platforms:
+// Cloudflare, DataDome, Akamai, Kasada, PerimeterX, Imperva, AWS WAF, FingerprintJS, reCAPTCHA, hCaptcha.
 
 export type DiagnosticStatus = "pass" | "warn" | "fail" | "info";
+
+export type BotProtectionKind =
+  | "Cloudflare"
+  | "DataDome"
+  | "Akamai"
+  | "Kasada"
+  | "PerimeterX"
+  | "Imperva"
+  | "AwsWaf"
+  | "FingerprintJs"
+  | "ReCaptcha"
+  | "HCaptcha";
+
+export type ProtectionCategory =
+  | "Bot Management"
+  | "Captcha"
+  | "WAF"
+  | "Fingerprinting"
+  | "Waiting Room";
+
+export interface BotProtectionResult {
+  provider: BotProtectionKind;
+  category: ProtectionCategory;
+  confidence: number;
+  isBlocked: boolean;
+  description: string;
+  signals: string[];
+  mitigation: string;
+}
 
 export interface DiagnosticItem {
   id: string;
@@ -45,6 +76,12 @@ export interface AntiBotProbeData {
     widgetSelectors: string[];
     apiPresent: boolean;
   };
+  pageSignals?: {
+    cookies: string;
+    scripts: string[];
+    iframes: string[];
+    htmlSnippet: string;
+  };
 }
 
 export interface AntiBotSummary {
@@ -52,7 +89,231 @@ export interface AntiBotSummary {
   totalChecks: number;
   passedChecks: number;
   leaksDetected: number;
+  protectionsDetected: BotProtectionResult[];
   items: DiagnosticItem[];
+}
+
+/**
+ * Detects anti-bot protection systems matching the rules in `antibot-detector` plugin.
+ */
+export function detectProtections(page: {
+  cookies: string;
+  scripts: string[];
+  iframes: string[];
+  htmlSnippet: string;
+}): BotProtectionResult[] {
+  const results: BotProtectionResult[] = [];
+  const cookiesLower = page.cookies.toLowerCase();
+  const htmlLower = page.htmlSnippet.toLowerCase();
+  const scriptsLower = page.scripts.map((s) => s.toLowerCase());
+  const iframesLower = page.iframes.map((f) => f.toLowerCase());
+
+  // 1. Cloudflare (Turnstile, Challenge, Waiting Room, WAF)
+  const cfSignals: string[] = [];
+  let cfBlocked = false;
+  let cfCategory: ProtectionCategory = "Bot Management";
+
+  if (cookiesLower.includes("cf_clearance")) cfSignals.push("cookie: cf_clearance");
+  if (cookiesLower.includes("__cf_bm")) cfSignals.push("cookie: __cf_bm");
+  if (cookiesLower.includes("__cfwaitingroom")) {
+    cfSignals.push("cookie: __cfwaitingroom");
+    cfBlocked = true;
+    cfCategory = "Waiting Room";
+  }
+  if (iframesLower.some((f) => f.includes("challenges.cloudflare.com/turnstile") || f.includes("challenges.cloudflare.com/cdn-cgi/challenge-platform"))) {
+    cfSignals.push("iframe: challenges.cloudflare.com/turnstile");
+    cfBlocked = true;
+    cfCategory = "Captcha";
+  }
+  if (htmlLower.includes("cf-turnstile") || htmlLower.includes("name=\"cf-turnstile-response\"")) {
+    cfSignals.push("dom: .cf-turnstile container");
+    cfCategory = "Captcha";
+  }
+  if (scriptsLower.some((s) => s.includes("turnstile/v0/api.js") || s.includes("challenges.cloudflare.com"))) {
+    cfSignals.push("script: turnstile API script");
+  }
+  if (htmlLower.includes("cf-challenge-running") || htmlLower.includes("cf-browser-verification") || htmlLower.includes("checking your browser before accessing")) {
+    cfSignals.push("marker: Cloudflare browser challenge page");
+    cfBlocked = true;
+  }
+  if (cfSignals.length > 0) {
+    results.push({
+      provider: "Cloudflare",
+      category: cfCategory,
+      confidence: Math.min(100, 75 + cfSignals.length * 10),
+      isBlocked: cfBlocked,
+      description: `Cloudflare protection detected (${cfSignals.join(", ")}).`,
+      signals: cfSignals,
+      mitigation: "Use seleniumbase-rs stealth mode or `uc_gui_click_captcha()` / pure CDP `page.turnstile_solver()`.",
+    });
+  }
+
+  // 2. DataDome
+  const ddSignals: string[] = [];
+  let ddBlocked = false;
+  if (cookiesLower.includes("datadome=")) ddSignals.push("cookie: datadome");
+  if (iframesLower.some((f) => f.includes("captcha-delivery.com") || f.includes("geo.captcha-delivery.com"))) {
+    ddSignals.push("iframe: geo.captcha-delivery.com");
+    ddBlocked = true;
+  }
+  if (scriptsLower.some((s) => s.includes("js.datadome.co") || s.includes("api-js.datadome.co"))) {
+    ddSignals.push("script: js.datadome.co/tags.js");
+  }
+  if (ddSignals.length > 0) {
+    results.push({
+      provider: "DataDome",
+      category: ddBlocked ? "Captcha" : "Bot Management",
+      confidence: 95,
+      isBlocked: ddBlocked,
+      description: `DataDome bot protection detected (${ddSignals.join(", ")}).`,
+      signals: ddSignals,
+      mitigation: "Avoid repetitive IP bursts and emulate natural human pointer curves with `seleniumbase_rs::evasion::humanize`.",
+    });
+  }
+
+  // 3. Akamai Bot Manager
+  const akamaiSignals: string[] = [];
+  if (cookiesLower.includes("_abck=")) akamaiSignals.push("cookie: _abck sensor");
+  if (cookiesLower.includes("bm_sz=")) akamaiSignals.push("cookie: bm_sz telemetry");
+  if (scriptsLower.some((s) => s.includes("/akam/13/") || s.includes("bazadebezolkohpepadr"))) {
+    akamaiSignals.push("script: Akamai sensor script");
+  }
+  if (akamaiSignals.length > 0) {
+    results.push({
+      provider: "Akamai",
+      category: "Bot Management",
+      confidence: 95,
+      isBlocked: false,
+      description: `Akamai Bot Manager sensor detected (${akamaiSignals.join(", ")}).`,
+      signals: akamaiSignals,
+      mitigation: "Keep consistent TLS fingerprints and avoid rapid background navigations.",
+    });
+  }
+
+  // 4. Kasada
+  const kasadaSignals: string[] = [];
+  if (htmlLower.includes("149e9513") || scriptsLower.some((s) => s.includes("ips.js") || s.includes("149e9513") || s.includes("kpsdk"))) {
+    kasadaSignals.push("script: Kasada ips.js / 149e9513 signature hash");
+  }
+  if (cookiesLower.includes("kpsdk")) {
+    kasadaSignals.push("cookie: KPSDK token");
+  }
+  if (kasadaSignals.length > 0) {
+    results.push({
+      provider: "Kasada",
+      category: "Bot Management",
+      confidence: 95,
+      isBlocked: false,
+      description: `Kasada Bot Protection detected (${kasadaSignals.join(", ")}).`,
+      signals: kasadaSignals,
+      mitigation: "Requires advanced CDP evasion and accurate hardware telemetry emulation.",
+    });
+  }
+
+  // 5. PerimeterX / HUMAN Security
+  const pxSignals: string[] = [];
+  let pxBlocked = false;
+  if (cookiesLower.includes("_px3=") || cookiesLower.includes("_px2=") || cookiesLower.includes("_px=")) {
+    pxSignals.push("cookie: _px token");
+  }
+  if (scriptsLower.some((s) => s.includes("client.perimeterx.net") || s.includes("captcha.perimeterx.net"))) {
+    pxSignals.push("script: PerimeterX sensor");
+  }
+  if (htmlLower.includes("px-captcha")) {
+    pxSignals.push("dom: px-captcha container");
+    pxBlocked = true;
+  }
+  if (pxSignals.length > 0) {
+    results.push({
+      provider: "PerimeterX",
+      category: pxBlocked ? "Captcha" : "Bot Management",
+      confidence: 95,
+      isBlocked: pxBlocked,
+      description: `PerimeterX / HUMAN Security detected (${pxSignals.join(", ")}).`,
+      signals: pxSignals,
+      mitigation: "Ensure realistic mouse micro-movements and disable Blink automation flags.",
+    });
+  }
+
+  // 6. Imperva / Incapsula
+  const impervaSignals: string[] = [];
+  if (cookiesLower.includes("visid_incap") || cookiesLower.includes("incap_ses")) {
+    impervaSignals.push("cookie: Incapsula session token");
+  }
+  if (scriptsLower.some((s) => s.includes("/_incapsula_resource"))) {
+    impervaSignals.push("script: /_Incapsula_Resource loader");
+  }
+  if (impervaSignals.length > 0) {
+    results.push({
+      provider: "Imperva",
+      category: "WAF",
+      confidence: 95,
+      isBlocked: false,
+      description: `Imperva / Incapsula protection detected (${impervaSignals.join(", ")}).`,
+      signals: impervaSignals,
+      mitigation: "Maintain session cookie persistence across requests.",
+    });
+  }
+
+  // 7. AWS WAF
+  const awsSignals: string[] = [];
+  if (cookiesLower.includes("aws-waf-token")) awsSignals.push("cookie: aws-waf-token");
+  if (scriptsLower.some((s) => s.includes("token.awswaf.com"))) awsSignals.push("script: AWS WAF token script");
+  if (awsSignals.length > 0) {
+    results.push({
+      provider: "AwsWaf",
+      category: "WAF",
+      confidence: 90,
+      isBlocked: false,
+      description: `AWS WAF integration detected (${awsSignals.join(", ")}).`,
+      signals: awsSignals,
+      mitigation: "Ensure AWS WAF challenge tokens are retrieved before issuing API calls.",
+    });
+  }
+
+  // 8. FingerprintJS
+  const fpjsSignals: string[] = [];
+  if (scriptsLower.some((s) => s.includes("openfpcdn.io") || s.includes("api.fpjs.io") || s.includes("fingerprintjs"))) {
+    fpjsSignals.push("script: FingerprintJS library");
+  }
+  if (fpjsSignals.length > 0) {
+    results.push({
+      provider: "FingerprintJs",
+      category: "Fingerprinting",
+      confidence: 90,
+      isBlocked: false,
+      description: `FingerprintJS browser identification library detected (${fpjsSignals.join(", ")}).`,
+      signals: fpjsSignals,
+      mitigation: "Use seleniumbase-rs evasion profile with fixed seed to ensure consistent visitor identifiers.",
+    });
+  }
+
+  // 9. reCAPTCHA & hCaptcha
+  if (scriptsLower.some((s) => s.includes("google.com/recaptcha") || s.includes("recaptcha/api.js")) || htmlLower.includes("g-recaptcha")) {
+    results.push({
+      provider: "ReCaptcha",
+      category: "Captcha",
+      confidence: 95,
+      isBlocked: false,
+      description: "Google reCAPTCHA widget/library detected on page.",
+      signals: ["script: google.com/recaptcha"],
+      mitigation: "Use seleniumbase-rs reCAPTCHA handler or audio solver helper.",
+    });
+  }
+
+  if (scriptsLower.some((s) => s.includes("hcaptcha.com")) || htmlLower.includes("class=\"h-captcha\"")) {
+    results.push({
+      provider: "HCaptcha",
+      category: "Captcha",
+      confidence: 95,
+      isBlocked: false,
+      description: "hCaptcha verification widget detected on page.",
+      signals: ["script: hcaptcha.com/1/api.js"],
+      mitigation: "Use seleniumbase-rs hCaptcha solver helper.",
+    });
+  }
+
+  return results;
 }
 
 /**
@@ -183,8 +444,11 @@ export function evaluateAntiBot(data: AntiBotProbeData): AntiBotSummary {
     });
   }
 
-  // 5. Cloudflare Turnstile Presence
-  if (data.turnstile.detected) {
+  // 5. Multi-Vendor Anti-Bot Protection Evaluation (matching `antibot-detector`)
+  const protections = data.pageSignals ? detectProtections(data.pageSignals) : [];
+
+  // Fallback to turnstile probe if pageSignals was not provided
+  if (protections.length === 0 && data.turnstile.detected) {
     const parts: string[] = [];
     if (data.turnstile.iframes > 0) parts.push(`${data.turnstile.iframes} challenge iframe(s)`);
     if (data.turnstile.widgetSelectors.length > 0) parts.push(`widgets: ${data.turnstile.widgetSelectors.join(", ")}`);
@@ -198,14 +462,26 @@ export function evaluateAntiBot(data: AntiBotProbeData): AntiBotSummary {
       detail: `Active Cloudflare Turnstile detected on this page (${parts.join("; ")}).`,
       recommendation: "Use seleniumbase-rs with uc_gui_click_captcha() or CDP page.turnstile_solver() to solve.",
     });
+  } else if (protections.length > 0) {
+    for (const p of protections) {
+      items.push({
+        id: `protection_${p.provider.toLowerCase()}`,
+        name: `${p.provider} (${p.category})`,
+        category: "challenge",
+        status: p.isBlocked ? "warn" : "info",
+        headline: `${p.provider} Detected (${p.confidence}% Confidence)`,
+        detail: p.description,
+        recommendation: p.mitigation,
+      });
+    }
   } else {
     items.push({
-      id: "turnstile",
-      name: "Cloudflare Turnstile",
+      id: "protections",
+      name: "Bot Protections & WAF",
       category: "challenge",
       status: "pass",
-      headline: "Not detected",
-      detail: "No Cloudflare Turnstile iframes, widget containers, or API objects found on the page.",
+      headline: "No active bot protections detected",
+      detail: "Scanned for Cloudflare, DataDome, Akamai, Kasada, PerimeterX, Imperva, AWS WAF, FingerprintJS, reCAPTCHA, and hCaptcha.",
     });
   }
 
@@ -218,6 +494,7 @@ export function evaluateAntiBot(data: AntiBotProbeData): AntiBotSummary {
     totalChecks: items.length,
     passedChecks: passed,
     leaksDetected: leaks,
+    protectionsDetected: protections,
     items,
   };
 }

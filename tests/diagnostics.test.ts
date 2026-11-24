@@ -98,4 +98,28 @@ describe("Anti-Bot & Fingerprint Diagnostics", () => {
     expect(summary.leaksDetected).toBe(0);
     expect(summary.passedChecks).toBe(5);
   });
+
+  test("detects DataDome, Akamai, Kasada, and PerimeterX matching antibot-detector rules", () => {
+    const data: AntiBotProbeData = {
+      webdriver: { flag: false, overridden: false, nativeGetter: true },
+      cdpFlags: { windowFlags: [], documentFlags: [], runtimeArtifacts: [] },
+      webgl: { vendor: "Apple", renderer: "Apple M3", unmaskedVendor: "Apple", unmaskedRenderer: "Apple M3", isSoftware: false, isTampered: false },
+      canvas: { noiseDetected: false, isTampered: false },
+      turnstile: { detected: false, iframes: 0, widgetSelectors: [], apiPresent: false },
+      pageSignals: {
+        cookies: "datadome=abc123; _abck=def456; _px3=ghi789",
+        scripts: ["https://js.datadome.co/tags.js", "https://cdn.example.com/149e9513-kpsdk.js"],
+        iframes: ["https://geo.captcha-delivery.com/captcha/"],
+        htmlSnippet: "<div class=\"px-captcha\"></div>",
+      },
+    };
+
+    const summary = evaluateAntiBot(data);
+    const providers = summary.protectionsDetected.map((p) => p.provider);
+    expect(providers).toContain("DataDome");
+    expect(providers).toContain("Akamai");
+    expect(providers).toContain("Kasada");
+    expect(providers).toContain("PerimeterX");
+    expect(summary.protectionsDetected.some((p) => p.isBlocked)).toBe(true);
+  });
 });

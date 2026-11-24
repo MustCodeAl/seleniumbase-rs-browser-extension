@@ -1,5 +1,5 @@
-// Generates ready-to-run Rust code for seleniumbase-rs ContextOptions
-// and evasion::Fingerprint from the inspected active page.
+// Generates ready-to-run Rust code for seleniumbase-rs ContextOptions,
+// evasion::Fingerprint, and the `antibot-detector` plugin crate.
 
 import type { PageProbe } from "./fingerprint.ts";
 import { rustStr } from "./rust.ts";
@@ -61,7 +61,6 @@ export function generateRustContextOptions(probe: PageProbe, options: { fnName?:
   const unmaskedRenderer = gl?.unmaskedRenderer ?? gl?.renderer;
   const unmaskedVendor = gl?.unmaskedVendor ?? gl?.vendor;
   if (unmaskedRenderer || unmaskedVendor) {
-    // Note: WebGL spoofing in Fingerprint
     lines.push("        // Replicated WebGL graphics hardware profile");
     lines.push("        // Vendor: " + (unmaskedVendor ?? "Default"));
     lines.push("        // Renderer: " + (unmaskedRenderer ?? "Default"));
@@ -93,4 +92,43 @@ export function generateRustContextOptions(probe: PageProbe, options: { fnName?:
     filename,
     code: lines.join("\n") + "\n",
   };
+}
+
+/**
+ * Generates ready-to-run Rust code using the `antibot-detector` plugin crate
+ * to detect Cloudflare, DataDome, Akamai, Kasada, PerimeterX, etc.
+ */
+export function generateRustAntibotDetectorCode(url = "https://example.com"): string {
+  return `//! Automated anti-bot detection script using the \`antibot-detector\` plugin crate.
+use antibot_detector::AntibotDetector;
+use seleniumbase_rs::sb_cdp::Browser;
+use seleniumbase_rs::Result;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let browser = Browser::launch().await?;
+    let page = browser.new_page_at(${rustStr(url)}).await?;
+
+    // Instantiate antibot-detector plugin
+    let detector = AntibotDetector::new();
+    let detections = detector.detect(&page).await?;
+
+    if detections.is_empty() {
+        println!("No anti-bot challenges or WAF protections detected.");
+    } else {
+        for d in detections {
+            println!(
+                "Detected: {} ({}) - Confidence: {}% - Blocked: {}",
+                d.provider(),
+                d.category(),
+                d.confidence(),
+                d.is_blocked()
+            );
+        }
+    }
+
+    browser.close().await?;
+    Ok(())
+}
+`;
 }

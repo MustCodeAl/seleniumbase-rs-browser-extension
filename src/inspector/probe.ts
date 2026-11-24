@@ -285,6 +285,18 @@ export async function probePage(): Promise<ProbeReport> {
     return win.turnstile !== undefined || win._cf_chl_opt !== undefined;
   }, false) ?? false;
 
+  const pageCookies = safe(() => (typeof document !== "undefined" ? document.cookie : ""), "") ?? "";
+  const pageScripts = safe(() => (typeof document !== "undefined" ? Array.from(document.querySelectorAll("script"), (s) => s.src || s.textContent || "").slice(0, 50) : []), []) || [];
+  const pageIframes = safe(() => (typeof document !== "undefined" ? Array.from(document.querySelectorAll("iframe"), (f) => f.src || "").slice(0, 20) : []), []) || [];
+  const pageHtml = safe(() => (typeof document !== "undefined" && document.documentElement ? document.documentElement.outerHTML.slice(0, 100_000) : ""), "") ?? "";
+
+  const pageSignals = {
+    cookies: pageCookies,
+    scripts: pageScripts,
+    iframes: pageIframes,
+    htmlSnippet: pageHtml,
+  };
+
   const antiBot = {
     webdriver: {
       flag: safe(() => nav.webdriver),
@@ -318,6 +330,7 @@ export async function probePage(): Promise<ProbeReport> {
       widgetSelectors: turnstileWidgets,
       apiPresent: turnstileApi,
     },
+    pageSignals,
   };
 
   return {
