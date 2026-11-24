@@ -10,6 +10,7 @@ import { callsFor } from "../shared/calls.ts";
 import { h } from "../shared/dom.ts";
 import { MSG, type Message, isMessage, message } from "../shared/protocol.ts";
 import { type PickResult, copyButton, renderPick } from "../shared/pickview.ts";
+import { pruneAndCountTokens } from "../shared/pagearena.ts";
 import { INTERACTIVE_SELECTOR, generateSelectors } from "../shared/selectors.ts";
 
 const CSS = `
@@ -109,7 +110,9 @@ function create(): NonNullable<Window["__sbrsInspector"]> {
     }
     const r = el.getBoundingClientRect();
     Object.assign(highlight.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
-    tip.textContent = label(el);
+    const pa = pruneAndCountTokens(el);
+    const savingsStr = pa.savingsPercent > 0 ? `-${pa.savingsPercent}%` : "0%";
+    tip.textContent = `${label(el)} [~${pa.rawTokens} tok -> ~${pa.markdownTokens} tok (${savingsStr})]`;
     Object.assign(tip.style, { left: `${Math.max(0, r.left)}px`, top: `${r.top > 24 ? r.top - 22 : r.bottom + 4}px` });
     highlight.hidden = false;
     tip.hidden = false;
@@ -159,6 +162,7 @@ function create(): NonNullable<Window["__sbrsInspector"]> {
     const generated = generateSelectors(el);
     const best = generated.best;
     const info = { tag: generated.tag, inputType: generated.inputType, text: generated.text };
+    const pageArena = pruneAndCountTokens(el);
     return {
       at: Date.now(),
       url: location.href,
@@ -171,6 +175,7 @@ function create(): NonNullable<Window["__sbrsInspector"]> {
       candidates: generated.candidates,
       best: best ? best.value : null,
       calls: best ? callsFor(best.value, info) : [],
+      pageArena,
     };
   }
 

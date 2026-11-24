@@ -228,6 +228,98 @@ export async function probePage(): Promise<ProbeReport> {
   );
   if (globals.length > 0) markers.push("automation_globals");
   const strong = ["ua_headless", "webdriver_true", "zero_outer_size", "notification_permission_mismatch", "automation_globals"];
+
+  // Anti-Bot & Fingerprint Diagnostics
+  const cdpWindow = safe(() => Object.getOwnPropertyNames(window).filter((k) => /^(\$|_)?[cC][dD][cC]_/i.test(k) || /^__(webdriver|selenium|driver)/i.test(k)), []) || [];
+  const cdpDoc = safe(() => (typeof document !== "undefined" ? Object.getOwnPropertyNames(document).filter((k) => /^(\$|_)?[cC][dD][cC]_/i.test(k)) : []), []) || [];
+  const cdpRuntime = safe(() => {
+    const win = window as unknown as Record<string, unknown>;
+    const arts: string[] = [];
+    for (const k of ["__webdriver_evaluate", "__selenium_evaluate", "__webdriver_script_function", "__fxdriver_unwrapped"]) {
+      if (win[k] !== undefined) arts.push(k);
+    }
+    return arts;
+  }, []) || [];
+
+  const webglTampered = safe(() => {
+    const canvas = document.createElement("canvas");
+    const gl = (canvas.getContext("webgl") || canvas.getContext("experimental-webgl")) as WebGLRenderingContext | null;
+    if (!gl) return false;
+    return !String(gl.getParameter).includes("[native code]");
+  }, false) ?? false;
+
+  const canvasDiag = safe(() => {
+    const c1 = document.createElement("canvas");
+    c1.width = 80;
+    c1.height = 30;
+    const ctx1 = c1.getContext("2d");
+    if (!ctx1) return { noiseDetected: false, isTampered: false };
+    ctx1.textBaseline = "top";
+    ctx1.font = "14px Arial";
+    ctx1.fillText("test", 2, 2);
+    const d1 = c1.toDataURL();
+
+    const c2 = document.createElement("canvas");
+    c2.width = 80;
+    c2.height = 30;
+    const ctx2 = c2.getContext("2d");
+    if (!ctx2) return { noiseDetected: false, isTampered: false };
+    ctx2.textBaseline = "top";
+    ctx2.font = "14px Arial";
+    ctx2.fillText("test", 2, 2);
+    const d2 = c2.toDataURL();
+
+    const isTampered =
+      typeof HTMLCanvasElement !== "undefined" &&
+      typeof CanvasRenderingContext2D !== "undefined" &&
+      (!String(HTMLCanvasElement.prototype.toDataURL).includes("[native code]") ||
+        !String(CanvasRenderingContext2D.prototype.getImageData).includes("[native code]"));
+
+    return { noiseDetected: d1 !== d2, isTampered, hash1: d1.slice(0, 32), hash2: d2.slice(0, 32) };
+  }, { noiseDetected: false, isTampered: false }) ?? { noiseDetected: false, isTampered: false };
+
+  const turnstileIframes = safe(() => (typeof document !== "undefined" ? document.querySelectorAll('iframe[src*="challenges.cloudflare.com"]').length : 0), 0) ?? 0;
+  const turnstileWidgets = safe(() => (typeof document !== "undefined" ? [".cf-turnstile", "[name='cf-turnstile-response']", "[data-turnstile]"].filter((s) => document.querySelector(s) !== null) : []), []) || [];
+  const turnstileApi = safe(() => {
+    const win = window as unknown as Record<string, unknown>;
+    return win.turnstile !== undefined || win._cf_chl_opt !== undefined;
+  }, false) ?? false;
+
+  const antiBot = {
+    webdriver: {
+      flag: safe(() => nav.webdriver),
+      overridden: safe(() => {
+        const proto = Object.getPrototypeOf(nav) as unknown as Record<string, unknown>;
+        return Object.getOwnPropertyDescriptor(proto, "webdriver") !== undefined;
+      }, false) ?? false,
+      nativeGetter: safe(() => {
+        const proto = Object.getPrototypeOf(nav) as unknown as Record<string, unknown>;
+        const desc = Object.getOwnPropertyDescriptor(proto, "webdriver");
+        return desc?.get ? String(desc.get).includes("[native code]") : true;
+      }, true) ?? true,
+    },
+    cdpFlags: {
+      windowFlags: cdpWindow,
+      documentFlags: cdpDoc,
+      runtimeArtifacts: cdpRuntime,
+    },
+    webgl: {
+      vendor: webgl ? (webgl.vendor ?? null) : null,
+      renderer: webgl ? (webgl.renderer ?? null) : null,
+      unmaskedVendor: webgl ? (webgl.unmaskedVendor ?? null) : null,
+      unmaskedRenderer: webgl ? (webgl.unmaskedRenderer ?? null) : null,
+      isSoftware: Boolean(renderer && /SwiftShader|llvmpipe|Software Renderer|Mesa/i.test(renderer)),
+      isTampered: webglTampered,
+    },
+    canvas: canvasDiag,
+    turnstile: {
+      detected: turnstileIframes > 0 || turnstileWidgets.length > 0 || turnstileApi,
+      iframes: turnstileIframes,
+      widgetSelectors: turnstileWidgets,
+      apiPresent: turnstileApi,
+    },
+  };
+
   return {
     navigator: navigatorInfo,
     userAgentData,
@@ -241,6 +333,7 @@ export async function probePage(): Promise<ProbeReport> {
     notificationPermission,
     media,
     headless: { markers, likely: markers.some((m) => strong.includes(m)) },
+    antiBot,
     url: safe(() => location.href),
     // Client Hints exist only on a secure page, so these two tell "this browser has none"
     // from "this page cannot have them".

@@ -112,6 +112,8 @@ export interface ProbeHeadless {
   likely: boolean;
 }
 
+import type { AntiBotProbeData } from "./diagnostics.ts";
+
 /** What a page sees of itself: the report of `probePage`. */
 export interface PageProbe {
   navigator?: ProbeNavigator | null;
@@ -126,6 +128,7 @@ export interface PageProbe {
   notificationPermission?: string | null;
   media?: ProbeMedia | null;
   headless?: ProbeHeadless;
+  antiBot?: AntiBotProbeData | null;
   url?: string | null;
   /** `window.isSecureContext`: some APIs (Client Hints, media devices) exist only on a secure page. */
   secureContext?: boolean | null;

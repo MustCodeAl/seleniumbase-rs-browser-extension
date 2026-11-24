@@ -4,6 +4,7 @@ build/
 *.zip
 .DS_Store
 .tokensave/
+.claude/
 # The e2e crate and its scratch crates build into a shared target directory
 # outside the repository; this keeps a stray local one out of git.
 e2e/target/

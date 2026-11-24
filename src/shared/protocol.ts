@@ -15,6 +15,7 @@ import type { Fingerprint, PageProbe } from "./fingerprint.ts";
 import { isRecord } from "./guards.ts";
 import type { PickResult } from "./pickview.ts";
 import type { Step } from "./steps.ts";
+import type { StreamEvent } from "./streamer.ts";
 
 export const PROTOCOL_VERSION = 1;
 
@@ -35,12 +36,18 @@ export const MSG = {
   INSPECTOR_PICK: "inspector/pick",
   INSPECTOR_LAST: "inspector/last",
   INSPECTOR_PROBE: "inspector/probe",
+  INSPECTOR_EVAL_SELECTOR: "inspector/eval-selector",
+  STREAM_START: "stream/start",
+  STREAM_STOP: "stream/stop",
+  STREAM_POLL: "stream/poll",
+  STREAM_CLEAR: "stream/clear",
 
   // Content script to background.
   RECORDER_HELLO: "recorder/hello",
   RECORDER_STEP: "recorder/step",
   INSPECTOR_PICKED: "inspector/picked",
   INSPECTOR_CANCELLED: "inspector/cancelled",
+  STREAM_EMIT: "stream/emit",
 
   // Background to a content script (runtime.tabs.sendMessage).
   RECORDER_DETACH: "recorder/detach",
@@ -48,6 +55,7 @@ export const MSG = {
 
   // Background to the panel: something changed, ask again.
   STATE_CHANGED: "core/state-changed",
+  STREAM_EVENT: "stream/event",
 } as const;
 
 /** A message: the version, the type, and the payload's fields, which the receiver checks. */
@@ -106,4 +114,10 @@ export interface Replies {
   [MSG.INSPECTOR_PICK]: Record<string, never>;
   [MSG.INSPECTOR_LAST]: { last: PickResult | null };
   [MSG.INSPECTOR_PROBE]: { probe: PageProbe; fingerprint: Fingerprint };
+  [MSG.INSPECTOR_EVAL_SELECTOR]: { ok: boolean; count: number; sample: string; error: string | null };
+  [MSG.STREAM_START]: { active: boolean; count: number };
+  [MSG.STREAM_STOP]: { active: boolean };
+  [MSG.STREAM_POLL]: { events: StreamEvent[] };
+  [MSG.STREAM_CLEAR]: { ok: boolean };
+  [MSG.STREAM_EMIT]: { ok: boolean };
 }

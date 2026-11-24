@@ -18,6 +18,7 @@ const MEDIA_TYPE = "text/x-rust";
 export interface ExportPlugin {
   stringify(recording: unknown): Promise<string>;
   stringifyStep(step: unknown): Promise<string>;
+  replay?(recording: unknown): Promise<void>;
 }
 
 function makePlugin(format: "cdp" | "basecase"): ExportPlugin {
@@ -33,6 +34,46 @@ function makePlugin(format: "cdp" | "basecase"): ExportPlugin {
       return fromReplay({ steps: [step] })
         .flatMap((s) => statements(s).lines)
         .join("\n");
+    },
+    /** Replay the recording directly inside Chrome with simulated stealth delays. */
+    async replay(recording) {
+      const steps = fromReplay(recording);
+      const win = globalThis.chrome?.devtools?.inspectedWindow;
+      for (const step of steps) {
+        if (step.type === "navigate" && typeof step.url === "string") {
+          win?.["eval"](`window.location.href = ${JSON.stringify(step.url)}`);
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+        } else if (step.type === "click" || step.type === "doubleClick") {
+          const sel = step.target?.selectors?.[0]?.value ?? "";
+          if (sel) {
+            win?.["eval"](`(() => {
+              const el = document.querySelector(${JSON.stringify(sel)});
+              if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+                el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+                el.click();
+              }
+            })()`);
+          }
+          await new Promise((resolve) => setTimeout(resolve, 300));
+        } else if (step.type === "setValue") {
+          const sel = step.target?.selectors?.[0]?.value ?? "";
+          const val = String(step.value ?? "");
+          if (sel) {
+            win?.["eval"](`(() => {
+              const el = document.querySelector(${JSON.stringify(sel)});
+              if (el) {
+                el.focus();
+                el.value = ${JSON.stringify(val)};
+                el.dispatchEvent(new Event('input', { bubbles: true }));
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+            })()`);
+          }
+          await new Promise((resolve) => setTimeout(resolve, 200));
+        }
+      }
     },
   };
 }

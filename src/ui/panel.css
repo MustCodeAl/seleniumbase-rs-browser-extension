@@ -94,6 +94,8 @@ table.compare th, table.compare td { padding: 4px 6px 4px 0; vertical-align: top
 table.compare thead th { width: auto; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
 table.compare tbody th { width: auto; color: var(--fg); font-weight: 600; }
 table.compare thead th:nth-child(1), table.compare thead th:nth-child(4) { width: 22%; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+.stream-row:hover { filter: brightness(0.95); }
 .verdict { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 999px; white-space: nowrap; }
 .verdict.match { background: var(--ok-bg); color: var(--ok-fg); }
 .verdict.differs { background: var(--bad-bg); color: var(--bad-fg); }

@@ -10,7 +10,9 @@ import { isRecord } from "../shared/guards.ts";
 import { type ViewContext, views } from "./registry.ts";
 import "./views/record.ts";
 import "./views/inspect.ts";
+import "./views/diagnostics.ts";
 import "./views/page.ts";
+import "./views/stream.ts";
 
 const params = new URLSearchParams(location.search);
 const listeners = new Map<string, Set<() => void>>(); // area -> the functions to run
