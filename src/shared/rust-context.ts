@@ -53,8 +53,9 @@ export function generateRustContextOptions(probe: PageProbe, options: { fnName?:
   if (typeof nav.hardwareConcurrency === "number" && nav.hardwareConcurrency > 0) {
     lines.push(`        .hardware_concurrency(${nav.hardwareConcurrency})`);
   }
-  if (typeof nav.deviceMemory === "number" && nav.deviceMemory > 0) {
-    lines.push(`        .device_memory(${nav.deviceMemory}.0)`);
+  if (typeof nav.deviceMemory === "number" && Number.isFinite(nav.deviceMemory) && nav.deviceMemory > 0) {
+    const memory = Number.isInteger(nav.deviceMemory) ? `${nav.deviceMemory}.0` : `${nav.deviceMemory}`;
+    lines.push(`        .device_memory(${memory})`);
   }
 
   // WebGL vendor/renderer spoof if available
@@ -81,7 +82,7 @@ export function generateRustContextOptions(probe: PageProbe, options: { fnName?:
   lines.push("///");
   lines.push("/// # async fn run(browser: Browser) -> seleniumbase_rs::Result<()> {");
   lines.push(`/// let options = ${fnName}()?;`);
-  lines.push("/// let context = browser.new_context_with_options(&options).await?;");
+  lines.push("/// let context = browser.new_context_with(options).await?;");
   lines.push(`/// let page = context.new_page_at(${rustStr(probe.url ?? "https://example.com")}).await?;`);
   lines.push("/// # Ok(())");
   lines.push("/// # }");
@@ -100,18 +101,29 @@ export function generateRustContextOptions(probe: PageProbe, options: { fnName?:
  */
 export function generateRustAntibotDetectorCode(url = "https://example.com"): string {
   return `//! Automated anti-bot detection script using the \`antibot-detector\` plugin crate.
-use antibot_detector::AntibotDetector;
-use seleniumbase_rs::sb_cdp::Browser;
-use seleniumbase_rs::Result;
+use antibot_detector::{AntibotDetector, Cookie, Page as DetectorPage};
+use seleniumbase_rs::sb_cdp::{Browser, LaunchOptions};
+use seleniumbase_rs::tokio;
 
 #[tokio::main]
-async fn main() -> Result<()> {
-    let browser = Browser::launch().await?;
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let browser = Browser::launch(LaunchOptions::default()).await?;
     let page = browser.new_page_at(${rustStr(url)}).await?;
+    let html = page.content().await?;
+    let cookies: Vec<Cookie> = page
+        .cookies()
+        .all()
+        .await?
+        .into_iter()
+        .map(|c| Cookie::new(c.name, c.value))
+        .collect();
+    let detector_page = DetectorPage::new(html)
+        .with_url(${rustStr(url)})
+        .with_cookies(cookies);
 
     // Instantiate antibot-detector plugin
     let detector = AntibotDetector::new();
-    let detections = detector.detect(&page).await?;
+    let detections = detector.detect(&detector_page)?;
 
     if detections.is_empty() {
         println!("No anti-bot challenges or WAF protections detected.");

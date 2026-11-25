@@ -39,6 +39,21 @@ describe("generateRustContextOptions", () => {
     expect(res.code).toContain(".device_memory(8.0)");
     expect(res.code).toContain("ContextOptions::builder()");
     expect(res.code).toContain(".fingerprint(&fingerprint)");
+    expect(res.code).toContain("browser.new_context_with(options).await?;");
+    expect(res.code).not.toContain("new_context_with_options");
+  });
+
+  test("formats fractional device_memory values without trailing .0", () => {
+    const probe: PageProbe = {
+      url: "https://example.com",
+      navigator: {
+        deviceMemory: 0.5,
+      },
+    };
+
+    const res = generateRustContextOptions(probe);
+    expect(res.code).toContain(".device_memory(0.5)");
+    expect(res.code).not.toContain(".device_memory(0.5.0)");
   });
 
   test("escapes quotes and control characters safely", () => {
@@ -56,9 +71,12 @@ describe("generateRustContextOptions", () => {
 
   test("generates ready-to-run Rust script with antibot-detector plugin", () => {
     const code = generateRustAntibotDetectorCode("https://example.com/protected");
-    expect(code).toContain("use antibot_detector::AntibotDetector;");
+    expect(code).toContain("use antibot_detector::{AntibotDetector, Cookie, Page as DetectorPage};");
+    expect(code).toContain("let browser = Browser::launch(LaunchOptions::default()).await?;");
+    expect(code).toContain("let html = page.content().await?;");
+    expect(code).toContain("let detector_page = DetectorPage::new(html)");
     expect(code).toContain("let detector = AntibotDetector::new();");
-    expect(code).toContain("let detections = detector.detect(&page).await?;");
-    expect(code).toContain('https://example.com/protected');
+    expect(code).toContain("let detections = detector.detect(&detector_page)?;");
+    expect(code).toContain("https://example.com/protected");
   });
 });
