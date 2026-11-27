@@ -28,17 +28,17 @@ describe("generateRustContextOptions", () => {
 
     const res = generateRustContextOptions(probe, { fnName: "my_custom_context" });
     expect(res.filename).toBe("context_options.rs");
-    expect(res.code).toContain("pub fn my_custom_context() -> Result<ContextOptions>");
-    expect(res.code).toContain("use seleniumbase_rs::evasion::Fingerprint;");
-    expect(res.code).toContain("use seleniumbase_rs::sb_cdp::ContextOptions;");
+    expect(res.code).toContain("pub fn my_custom_context() -> Result<(ContextOptions, Fingerprint)>");
+    expect(res.code).toContain("use seleniumbase_rs_stealth::identity::fingerprint::Fingerprint;");
+    expect(res.code).toContain("use seleniumbase_rs_stealth::sb_cdp::ContextOptions;");
     expect(res.code).toContain('.user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36")');
     expect(res.code).toContain('.locale("en-US")');
     expect(res.code).toContain('.screen(1920, 1080)');
     expect(res.code).toContain('.timezone("America/New_York")');
     expect(res.code).toContain(".hardware_concurrency(8)");
     expect(res.code).toContain(".device_memory(8.0)");
-    expect(res.code).toContain("ContextOptions::builder()");
-    expect(res.code).toContain(".fingerprint(&fingerprint)");
+    expect(res.code).toContain("ContextOptions::builder().build()?;");
+    expect(res.code).toContain("page.apply_fingerprint(&fingerprint).await?;");
     expect(res.code).toContain("browser.new_context_with(options).await?;");
     expect(res.code).not.toContain("new_context_with_options");
   });

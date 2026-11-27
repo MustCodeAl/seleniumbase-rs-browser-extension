@@ -1,5 +1,5 @@
 // Generates ready-to-run Rust code for seleniumbase-rs ContextOptions,
-// evasion::Fingerprint, and the `antibot-detector` plugin crate.
+// seleniumbase-rs-stealth Fingerprint, and the `antibot-detector` plugin crate.
 
 import type { PageProbe } from "./fingerprint.ts";
 import { rustStr } from "./rust.ts";
@@ -11,7 +11,8 @@ export interface RustContextOptionsCode {
 
 /**
  * Generates idiomatic, ready-to-run Rust code constructing
- * `seleniumbase_rs::sb_cdp::ContextOptions` with `seleniumbase_rs::evasion::Fingerprint`.
+ * `seleniumbase_rs_stealth::sb_cdp::ContextOptions` and
+ * `seleniumbase_rs_stealth::identity::fingerprint::Fingerprint`.
  */
 export function generateRustContextOptions(probe: PageProbe, options: { fnName?: string } = {}): RustContextOptionsCode {
   const nav = probe.navigator ?? {};
@@ -27,12 +28,12 @@ export function generateRustContextOptions(probe: PageProbe, options: { fnName?:
   }
   lines.push(`//! Date: ${new Date().toISOString()}`);
   lines.push("");
-  lines.push("use seleniumbase_rs::evasion::Fingerprint;");
-  lines.push("use seleniumbase_rs::sb_cdp::ContextOptions;");
-  lines.push("use seleniumbase_rs::Result;");
+  lines.push("use seleniumbase_rs_stealth::identity::fingerprint::Fingerprint;");
+  lines.push("use seleniumbase_rs_stealth::sb_cdp::ContextOptions;");
+  lines.push("use seleniumbase_rs_stealth::Result;");
   lines.push("");
-  lines.push("/// Build `ContextOptions` replicating this browser profile and viewport.");
-  lines.push(`pub fn ${fnName}() -> Result<ContextOptions> {`);
+  lines.push("/// Build `ContextOptions` and `Fingerprint` replicating this browser profile and viewport.");
+  lines.push(`pub fn ${fnName}() -> Result<(ContextOptions, Fingerprint)> {`);
   lines.push("    let fingerprint = Fingerprint::builder()");
 
   if (nav.userAgent) {
@@ -69,21 +70,22 @@ export function generateRustContextOptions(probe: PageProbe, options: { fnName?:
 
   lines.push("        .build()?;");
   lines.push("");
-  lines.push("    let options = ContextOptions::builder()");
-  lines.push("        .fingerprint(&fingerprint)");
-  lines.push("        .build()?;");
+  lines.push("    let options = ContextOptions::builder().build()?;");
   lines.push("");
-  lines.push("    Ok(options)");
+  lines.push("    Ok((options, fingerprint))");
   lines.push("}");
   lines.push("");
   lines.push("/// Example usage in pure CDP or testing:");
   lines.push("/// ```no_run");
-  lines.push("/// use seleniumbase_rs::sb_cdp::Browser;");
+  lines.push("/// use seleniumbase_rs_stealth::client::apply::PageFingerprintExt;");
+  lines.push("/// use seleniumbase_rs_stealth::sb_cdp::Browser;");
   lines.push("///");
-  lines.push("/// # async fn run(browser: Browser) -> seleniumbase_rs::Result<()> {");
-  lines.push(`/// let options = ${fnName}()?;`);
+  lines.push("/// # async fn run(browser: Browser) -> seleniumbase_rs_stealth::Result<()> {");
+  lines.push(`/// let (options, fingerprint) = ${fnName}()?;`);
   lines.push("/// let context = browser.new_context_with(options).await?;");
-  lines.push(`/// let page = context.new_page_at(${rustStr(probe.url ?? "https://example.com")}).await?;`);
+  lines.push("/// let page = context.new_page().await?;");
+  lines.push("/// page.apply_fingerprint(&fingerprint).await?;");
+  lines.push(`/// page.goto(${rustStr(probe.url ?? "https://example.com")}).await?;`);
   lines.push("/// # Ok(())");
   lines.push("/// # }");
   lines.push("/// ```");

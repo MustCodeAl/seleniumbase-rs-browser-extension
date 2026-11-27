@@ -167,7 +167,7 @@ export function detectProtections(page: {
       isBlocked: ddBlocked,
       description: `DataDome bot protection detected (${ddSignals.join(", ")}).`,
       signals: ddSignals,
-      mitigation: "Avoid repetitive IP bursts and emulate natural human pointer curves with `seleniumbase_rs::evasion::humanize`.",
+      mitigation: "Avoid repetitive IP bursts and emulate natural human pointer curves with `seleniumbase_rs::sb_cdp::human::humanize`.",
     });
   }
 
