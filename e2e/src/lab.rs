@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use seleniumbase_rs::sb_cdp::{Browser, LaunchOptions, Page};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Microsoft Edge on macOS.
 pub const EDGE: &str = "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge";

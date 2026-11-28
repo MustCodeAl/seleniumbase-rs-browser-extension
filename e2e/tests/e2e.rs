@@ -16,13 +16,13 @@ use std::time::Duration;
 
 use sbrs_companion_e2e::fixtures::Server;
 use sbrs_companion_e2e::lab::{
-    dist, eventually, launch, load_extension, repo_root, step_types, Ext, EDGE,
+    EDGE, Ext, dist, eventually, launch, load_extension, repo_root, step_types,
 };
-use sbrs_companion_e2e::scratch::{headless, Scratch};
+use sbrs_companion_e2e::scratch::{Scratch, headless};
 use seleniumbase_rs::api::recorder::{ActionRecorder, RecordedCommand};
 use seleniumbase_rs::sb_cdp::Key;
 use seleniumbase_rs::{BrowserType, Fingerprint, OsType, ScreenSize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 fn golden(name: &str) -> PathBuf {
     repo_root().join("tests").join("golden").join(name)
@@ -408,7 +408,10 @@ async fn records_exports_and_replays_in_chrome() {
         "page.locator(\"[data-testid=\\\"query\\\"]\").press(Key::Enter).await?;",
         "page.locator(\"#back\").click().await?;",
     ] {
-        assert!(cdp_text.contains(expected), "missing {expected}\n{cdp_text}");
+        assert!(
+            cdp_text.contains(expected),
+            "missing {expected}\n{cdp_text}"
+        );
     }
     assert!(!cdp_text.contains("hunter2"));
     // `Locator::type_text` empties the field first, so the export does not clear it as well.
@@ -426,8 +429,10 @@ async fn records_exports_and_replays_in_chrome() {
     let basecase_text = basecase["text"].as_str().expect("text").to_owned();
     println!("--- exported (BaseCase) ---\n{basecase_text}");
     assert!(basecase_text.contains("sb.select_option_by_text(\"#color\", \"Green\").await?;"));
-    assert!(basecase_text
-        .contains("sb.send_keys(\"[data-testid=\\\"query\\\"]\", \"\\u{e007}\").await?;"));
+    assert!(
+        basecase_text
+            .contains("sb.send_keys(\"[data-testid=\\\"query\\\"]\", \"\\u{e007}\").await?;")
+    );
     let replay = ext
         .ok(
             "recorder/export",
@@ -630,11 +635,13 @@ async fn inspector_selectors_match_one_element_each() {
         .and_then(|major| major.parse().ok())
         .expect("a Chrome/<major> token in the user agent");
 
-    assert!(probe["headless"]["markers"]
-        .as_array()
-        .expect("markers")
-        .iter()
-        .any(|m| m == "ua_headless"));
+    assert!(
+        probe["headless"]["markers"]
+            .as_array()
+            .expect("markers")
+            .iter()
+            .any(|m| m == "ua_headless")
+    );
     assert!(probe["navigator"]["hardwareConcurrency"].is_number());
     assert!(probe["timezone"]["name"].is_string());
     assert!(probe["canvas"]["hash"].is_string());
@@ -668,20 +675,24 @@ async fn inspector_selectors_match_one_element_each() {
         .ok("core/ping", json!({}))
         .await
         .expect("the background accepts it");
-    assert!(ping["name"]
-        .as_str()
-        .expect("name")
-        .starts_with("seleniumbase-rs Companion"));
+    assert!(
+        ping["name"]
+            .as_str()
+            .expect("name")
+            .starts_with("seleniumbase-rs Companion")
+    );
     let denied = store
         .call(json!({ "type": "inspector/probe", "tabId": tab }))
         .await
         .expect("the page runs the message");
     println!("store build, no access: {denied}");
     assert_eq!(denied["ok"], json!(false));
-    assert!(denied["error"]
-        .as_str()
-        .expect("error")
-        .contains("no access"));
+    assert!(
+        denied["error"]
+            .as_str()
+            .expect("error")
+            .contains("no access")
+    );
 
     // The panel's other two views, with a pick and a report to show.
     for view in ["inspect", "page"] {
